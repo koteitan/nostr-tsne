@@ -9,8 +9,9 @@
     </head>
     <body>
         <h1>nostr-tsne</h1>
+        <canvas id="outcanvas" width=600px height=600px style="border-style:solid"></canvas><br>
         <address>
-          <a href="./">nostr-tsne</a> version 0.01<br>
+          <a href="./">nostr-tsne</a> version 0.02<br>
             Programmed by <a href="https://coracle.social/npub1f3w4x7dqvceeez8kuyq78md3lwhwfm0ra634llr0r3nykwjrs0hqvldhgk">koteitan</a><br>
             Source code is on <a href="https://github.com/koteitan/nostr-tsne">github</a><br>
             The program and the site is licensed by <a href="https://github.com/koteitan/nostr-tsne/blob/master/LICENSE.md">MIT License</a>.
@@ -20,8 +21,13 @@
           <textarea name="debugout" class="debugout" rows="30"></textarea>
           </div>
         </form>
-        <script type="text/javascript" src="./main.js"></script>
         <script type="text/javascript" src="./digits_data.js"></script>
+        <script type="text/javascript" src="./exarray.js"></script>
+        <script type="text/javascript" src="./exmath.js"></script>
+        <script type="text/javascript" src="./geom.js"></script>
+        <script type="text/javascript" src="./event.js"></script>
+        <script type="text/javascript" src="./excanvas.js"></script>
         <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
+        <script type="text/javascript" src="./main.js"></script>
     </body>
 </html>

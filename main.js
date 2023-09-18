@@ -1,180 +1,46 @@
+// nostr-------------------
+var isRelayLoaded = false;
 // fields--------------------
-// maps
-var maps;
-var spreadsheetId = "11WH6PrhFAcdMEWSTjxSjZ7_rWHg-b8shAvSFn99bdyQ"; // for live
-//var spreadsheetId = "1foxx3dOYDwnyqQsxmhmcWV93xvCzOxX73GCg8Bv-kg0";
 var gW; /* world coordinate */
 //entry point--------------------
 window.onload = function(){
   initHtml(); //get locale option
-  initMaps(); //use local option
+  initTsne(); //use local option
   initDraw();
   initEvent(can);
   window.onresize(); //after loading maps
   setInterval(procAll, 1000/frameRate); //enter gameloop
 }
 //maps-------------------
-var initMaps=function(){
-  var url = "https://sheets.googleapis.com/v4/spreadsheets/" + 
-          spreadsheetId +
-          "/values/sheet?key=AIzaSyC7snXkND495Hd_-p8iVrJVUtZkulEKVdw";
-  $.get({
-    url: url,
-    success: function(response) {
-      initMaps2(response); /* set callback and continue to initMaps2*/
-    }
-  });
-  var m = 0.1; //default margin
-  gW = new Geom(2,[[0-m,0-m],[1+m,1+m]]);
+var initTsne=function(){
+  gW = new Geom(2,[[0,0],[1,1]]);
 };
-/* continued from main(). */
-var initMaps2=function(res){
-  /* res -> parse -> entrylist[n] */
-  var sheet = res.values;
-  var entries = sheet.length;
-  entrylist = [];
-  for(var e=0;e<entries;e++){
-    var entry = new Entry(sheet[e]);
-    entrylist.push(entry);
-  }
-  /* make a maps */
-  maps = new Maps(entrylist);
-  /* draw */
-  isSheetLoaded = true;
-  isRequestedDraw = true;
-}
 //game loop ------------------
 var procAll=function(){
   procEvent();
-  if(isRequestedDraw && isSheetLoaded){
+  if(isRequestedDraw){
     procDraw();
     isRequestedDraw = false;
   }
 }
 var initHtml=function(){
-  debug = document.getElementById('debug');
+  //debug = document.getElementById('debug');
   if(navigator.language=='ja'){
-    document.getElementsByName('locale')[1].checked = true;
   }
 }
 
-var attributelist=['type','order','discoveryear','name','local','name','author','local','author','locale','expression','fgh','evolvedfrom','related','color','equal','definitionurl','isterminated'];
-var monthdays=[31,28,31,30,31,30,31,31,30,31,30,31];
-/* Entry object 
- * Entry is the object of each large number. 
- * line = response.feed.entry[n] */
-var Entry=function(line){
-  var col = line.content.$t.split(",");
-  for (var i=0;i<col.length;i++){
-    if (col[i].indexOf(": ")==-1){
-      col[i-1]+=","+col[i];
-      col.splice(i,1);
-      i--;
-    }
-  }
-  for(var i=0;i<attributelist.length;i++){
-    this[attributelist[i]]="";
-  }
-  for (var i=0;i<col.length;i++){
-    var a = col[i].split(":");
-    if(a.length>=2) {
-      this[a[0].trim()]=a[1].trim();
-    }
-  }
-  this.order=parseInt(this.order);
-  if(typeof(this.discoveryear)==="number"){
-    this.discoveryear=this.discoveryear+""; //convert to string
-  }
-  if(this.discoveryear.length==4){
-    this.yeardate=new Date(this.discoveryear+"-12-31");
-  }else if(this.discoveryear.length==6){
-    this.yeardate=new Date(
-           this.discoveryear.substr(0,4)
-      +"-"+this.discoveryear.substr(4,2)
-      +"-"+(monthdays[parseInt(this.discoveryear.substr(4,2))])
-    );
-  }else{
-    this.yeardate=new Date(
-             this.discoveryear.substr(0,4)
-        +"-"+this.discoveryear.substr(4,2)
-        +"-"+this.discoveryear.substr(6,2)
-    );
-  }
-
-  this.evolvedfrom=this.evolvedfrom.split("/");
-  this.related=this.related.split("/");
-}
-Entry.prototype.toString = function(){
-  return this.discoveryear + ":" + this.name + "(" + this.order + ")";
-}
-/* Maps Object
- * Maps of the large nubmers.
- * list = list of large nubmers */
-var Maps=function(list){
-  this.entrylist = list; /* list of large numbrers */
-
-  /* entrylist -> sort */
-  /* this.yearsort = list of list of index sorted by year.
-   * when A<B<C<D=E=F<G<H,
-   * this.yearsort = [[A],[B],[C],[D,E,F],[G],[H]] */
-  this.yearsort  = []; 
-
-  var left = list.clone();
-  for(var e=0;e<left.length;e++){
-    left[e].i = e; // add index member
-  }
-  var prevyear = new Date(-100000);
-  while(left.length>0){ //loop until left is empty
-    //find minimum
-    var mine = 0;
-    var minl = 0;
-    for(var l=0;l<left.length;l++){
-      if(left[l].yeardate<=left[minl].yeardate){
-        mine = left[l].i;
-        minl = l;
-      }
-    }
-    if(prevyear - left[minl].yeardate == 0){ // if same year
-      //add mine into last array
-      this.yearsort[this.yearsort.length-1].push(mine);
-    }else{ // if different year
-      //add new array
-      this.yearsort.push([mine]);
-    }
-    prevyear = left[minl].yeardate;
-    left = left.slice(0,minl).concat(left.slice(minl+1));
-  }
-  var years=this.yearsort.length;
-  var timewidth=list[this.yearsort[years-1][0]].yeardate.getTime()
-               -list[this.yearsort[    0  ][0]].yeardate.getTime();
-  var timeoldest=list[this.yearsort[    0  ][0]].yeardate.getTime();
-  for(var y=0;y<years;y++){
-    for(var e=0;e<this.yearsort[y].length;e++){
-      list[this.yearsort[y][e]].x = y/years;
-      //list[this.yearsort[y][e]].x = (list[this.yearsort[y][e]].yeardate-timeoldest)/timewidth; //actual scale
-    }
-  }
-  var orders = list[list.length-1].order +1;
-  for(var e=0;e<list.length;e++){
-    list[e].y = list[e].order/orders;
-  }
-  a=1;
-}
 // html ----------------------------
 var debug;
 window.onresize = function(){ //browser resize
   var wx,wy;
   var agent = navigator.userAgent;
-  var wx= [(document.documentElement.clientWidth-10)*0.99, 320].max();
-  var wy= [(document.documentElement.clientHeight-200), 20].max();
+  var wx= [(document.documentElement.clientWidth - 10)*0.99, 320].max();
+  var wy= [(document.documentElement.clientHeight-200)     ,  20].max();
   document.getElementById("outcanvas").width = wx;
   document.getElementById("outcanvas").height= wy;
   renewgS();
   isRequestedDraw = true;
 };
-var changelocale=function(){ // form option button
-  isRequestedDraw = true;
-}
 // graphics ------------------------
 var ctx;
 var can;
@@ -191,7 +57,8 @@ var initDraw=function(){
   renewgS();
 }
 var renewgS=function(){
-  var s=[[0,can.height],[can.width,0]];
+  var minwidth = [can.height, can.width].min();
+  var s=[[0,minwidth],[minwidth,0]];
   gS = new Geom(2,s);
 }
 //proc
@@ -235,33 +102,6 @@ var procDraw = function(){
       }//q
     }//depth
   }//d
-
-  //draw entries
-  ctx.strokeStyle='black';
-  ctx.fillStyle='black';
-  ctx.font = String(fontsize)+'px Segoe UI';
-  for(var e=0;e<maps.entrylist.length;e++){
-    var entry  = maps.entrylist[e];
-    var sq = transPos([entry.x, entry.y],gW,gS); //center of entry
-    
-    //circle
-    ctx.strokeStyle=entry.color;
-    ctx.lineWidth=4;
-    ctx.beginPath();
-    ctx.arc(Math.floor(sq[0]), 
-            Math.floor(sq[1]), radius, 0, 2*Math.PI,false);
-    ctx.stroke();
-
-    //text
-    var text=document.getElementsByName('locale')[1].checked
-      ?entry.localname
-      :entry.name;
-    if(text.length>32){text=text.substring(0,32)+"...";}
-    var tx = ctx.measureText(text).width;
-    var ty = fontsize+radius;
-    ctx.fillText(text, Math.floor(sq[0]-tx/2),
-                       Math.floor(sq[1]-ty/2));
-  }
 }
 //event---------------------
 var downpos=[-1,-1];// start of drag
