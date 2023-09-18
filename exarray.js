@@ -66,6 +66,24 @@ Array.prototype.prod = function(){
 Array.prototype.mean = function(){
     return this.sum()/this.length;
 }
+Array.prototype.cloneFloat64Array = function(){
+    if ( this[0].constructor == Array ) {
+        var ar, n;
+        ar = new Array( this.length );
+        for ( n = 0; n < ar.length; n++ ) {
+            ar[n] = this[n].clone();
+        }
+        return ar;
+    }else if ( this[0].constructor == Float64Array ) {
+        var ar, n;
+        ar = new Float64Array( this.length );
+        for ( n = 0; n < ar.length; n++ ) {
+            ar[n] = this[n];
+        }
+        return ar;
+    }
+    return [].concat(this);
+}
 Array.prototype.clone = function(){
     if ( this[0].constructor == Array ) {
         var ar, n;
