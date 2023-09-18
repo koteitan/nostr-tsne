@@ -25,8 +25,6 @@ TSNE.prototype.init=function(D, ndimY){
   }
 
   //init P
-
-
   var th      = this.param.perpth;
   var maxiter = 100;
   var tol     = 1e-3;

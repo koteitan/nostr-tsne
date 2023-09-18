@@ -9,7 +9,7 @@ window.onload = function(){
   initDraw();
   initEvent(can);
   window.onresize(); //after loading maps
-  setInterval(procAll, 1000/frameRate); //enter gameloop
+  setInterval(procAll, frameInterval*1000); //enter gameloop
 }
 //tsne-------------------
 var A;
@@ -35,9 +35,27 @@ var initTsne=function(){
   var D = TSNE.data2distances(digits.data.slice(0,N-1)); //use scikit
   tsne=new TSNE(D, 2);
   isTsneInit = true;
+
+  //performance counter
+  elapsehist=new Array(10);
+  for(var i=0;i<elapsehist.length;i++){
+    elapsehist[i]=frameInterval;
+  }
 };
+var movfilter;
 var procTsne=function(){
+  var t0=(new Date).getTime()/1000;
   tsne.step();
+  var t1=(new Date).getTime()/1000;
+  var dt = t1-t0;
+  elapsehist.shift();
+  elapsehist.push(dt);
+  var mean=elapsehist.mean();
+  frameInterval = [mean/targetLoad, frameIntervalMin].max();
+  document.getElementById("debug").innerHTML=
+    "this frame: "+Math.floor(dt  *1000)+" [ms] "+
+    "/average   : "+Math.floor(mean*1000)+" [ms] "+
+    "/frame rate: "+Math.floor(1/frameInterval*100)/100+ " [fps]";
   isRequestedDraw = true;
 }
 //game loop ------------------
@@ -60,8 +78,8 @@ var debug;
 window.onresize = function(){ //browser resize
   var wx,wy;
   var agent = navigator.userAgent;
-  var wx= [(document.documentElement.clientWidth - 10)*0.99, 320].max();
-  var wy= [(document.documentElement.clientHeight-200)     ,  20].max();
+  var wx= [(document.documentElement.clientWidth - 20)*0.98, 320].max();
+  var wy= [(document.documentElement.clientHeight-250)     ,  20].max();
   document.getElementById("outcanvas").width = wx;
   document.getElementById("outcanvas").height= wy;
   renewgS();
@@ -75,7 +93,9 @@ var fontsize = 15;
 var radius = 15;
 var isRequestedDraw = true;
 var isSheetLoaded = false;
-var frameRate = 3; //[fps]
+var frameInterval    = 0.5;  //[sec]
+var frameIntervalMin = 0.25; //[sec]
+var targetLoad = 0.8; //1.0=100%
 //init
 var initDraw=function(){
   can = document.getElementById("outcanvas");
@@ -170,7 +190,7 @@ var handleMouseWheel = function(){
   var oldw=gW.w.clone();
   for(var i=0;i<2;i++){
     for(var d=0;d<2;d++){
-      gW.w[i][d] = (oldw[i][d]-pos[d])*Math.pow(1.1, -mouseWheel[1]/1000)+pos[d];
+      gW.w[i][d] = (oldw[i][d]-pos[d])*Math.pow(1.1, -mouseWheel[1]/200)+pos[d];
     }
   }
   gW.recalc();
