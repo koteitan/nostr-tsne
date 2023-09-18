@@ -11,9 +11,40 @@ window.onload = function(){
   window.onresize(); //after loading maps
   setInterval(procAll, 1000/frameRate); //enter gameloop
 }
-//maps-------------------
+//tsne-------------------
+var N=digits.data.length;
+var Y;
+var A;
+var dimo;
+var dimi;
+var color=[
+  [255,0,0],
+  [0,255,0],
+  [0,0,255],
+  [0,255,255],
+  [255,0,255],
+  [255,255,0],
+  [0,127,255],
+  [127,255,0],
+  [255,0,127],
+  [0,255,127],
+];
+var isTsneInit = false;
 var initTsne=function(){
-  gW = new Geom(2,[[0,0],[1,1]]);
+  gW = new Geom(2,[[-1,-1],[1,1]]);
+  dimi=64;
+  dimo=2;
+  Y=new Array(N);
+  for(var n=0;n<N;n++){
+    Y[n]=new Float64Array(dimo);
+    a = Math.sqrt(-2*Math.log(Math.random()));
+    t = Math.random()*2*Math.PI;
+    Y[n][0] = a*Math.cos(t);
+    Y[n][1] = a*Math.sin(t);
+    console.log(Y[n][0],",",Y[n][1]);
+  }
+  A=digits.target;
+  isTsneInit = true;
 };
 //game loop ------------------
 var procAll=function(){
@@ -102,6 +133,21 @@ var procDraw = function(){
       }//q
     }//depth
   }//d
+
+  if(isTsneInit){
+    //Y nodes
+    sY=new Array(N);
+    for(var n=0;n<N;n++){
+      sY[n]=transPosInt(Y[n],gW,gS);
+    }
+    ctx.lineWidth=0;
+    for(var n=0;n<N;n++){
+      ctx.fillStyle='rgb('+color[A[n]][0]+','+color[A[n]][1]+','+color[A[n]][2]+')';
+      ctx.beginPath();
+      ctx.arc(sY[n][0], sY[n][1], 2, 0, 2*Math.PI);
+      ctx.fill();
+    }
+  }
 }
 //event---------------------
 var downpos=[-1,-1];// start of drag
@@ -134,4 +180,3 @@ var handleMouseWheel = function(){
   gW.recalc();
   isRequestedDraw = true;
 }
-
