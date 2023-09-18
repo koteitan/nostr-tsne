@@ -12,10 +12,7 @@ window.onload = function(){
   setInterval(procAll, 1000/frameRate); //enter gameloop
 }
 //tsne-------------------
-var N=digits.data.length;
 var A;
-var ndimY;
-var ndimX;
 var color=[
   [255,0,0],
   [0,255,0],
@@ -31,15 +28,16 @@ var color=[
 var isTsneInit = false;
 var tsne;
 var initTsne=function(){
-  gW = new Geom(2,[[-1,-1],[1,1]]);
-  ndimX=64;
-  ndimY=2;
-  A=digits.target; //use scikit
-  tsne=new TSNE(digits.data); //use scilit
+  var scale=5;
+  gW = new Geom(2,[[-scale,-scale],[scale,scale]]);
+  var N = digits.data.length;
+  A=digits.target.slice(0,N-1); //use scikit
+  tsne=new TSNE(digits.data.slice(0,N-1), 2); //use scilit
   isTsneInit = true;
 };
 var procTsne=function(){
   tsne.step();
+  isRequestedDraw = true;
 }
 //game loop ------------------
 var procAll=function(){
@@ -76,7 +74,7 @@ var fontsize = 15;
 var radius = 15;
 var isRequestedDraw = true;
 var isSheetLoaded = false;
-var frameRate = 30; //[fps]
+var frameRate = 3; //[fps]
 //init
 var initDraw=function(){
   can = document.getElementById("outcanvas");
@@ -132,6 +130,7 @@ var procDraw = function(){
 
   if(isTsneInit){
     //Y nodes
+    N=tsne.N;
     sY=new Array(N);
     for(var n=0;n<N;n++){
       sY[n]=transPosInt(tsne.Y[n],gW,gS);

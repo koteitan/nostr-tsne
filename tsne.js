@@ -2,8 +2,8 @@
  * Laurens van der Maaten, Geoffrey Hinton, ”Visualizing Data using t-SNE”, Journal of Machine Learning Research (2008) pp.1-48
  * http://www.cs.toronto.edu/~hinton/absps/tsne.pdf
 */
-var TSNE=function(X){
-  this.init(X);
+var TSNE=function(X, ndimY){
+  this.init(X, ndimY);
 }
 TSNE.prototype.init=function(X, ndimY){
   this.X=X;
@@ -96,6 +96,7 @@ TSNE.prototype.init=function(X, ndimY){
       }
       if(Math.abs(th-perpPi) < tol){
         issearching = false;
+        //console.log("sigma["+i+"]="+sigma);
       }
     }//for it
   }//for i
@@ -118,7 +119,7 @@ TSNE.prototype.step = function(){
   var N = this.N;
   var P = this.P;
   var Y = this.Y;
-  var ndimY = this.ndimY;
+  var ndimY = Y[0].length;
   var newY = Y.clone();
 
   // eq (12)
@@ -130,7 +131,7 @@ TSNE.prototype.step = function(){
       if (k!==l) {
         var l2=0.0;
         for(var d=0;d<ndimY;d++){
-          var dY = Y[i][d]-Y[j][d];
+          var dY = Y[k][d]-Y[l][d];
           l2    += dY * dY;
         }
         sum += 1.0/(1.0 + l2);
@@ -160,9 +161,9 @@ TSNE.prototype.step = function(){
   var dcdy = new Array(N);
   for(var i=0;i<N;i++){
     dcdy[i] = new Float64Array(ndimY);
-    for(var j=0;j<N;j++){
-      dcdy[i][j]=0.0;
-    }
+    dcdy[i][j]=0.0;
+  }
+  for(var i=0;i<N;i++){
     for(var j=0;j<N;j++){
       if(i!=j){
         var pij = P[i][j];
@@ -175,7 +176,8 @@ TSNE.prototype.step = function(){
         }
         var a = (pij-qij)*(1.0/(1.0+l2));
         for(var d=0;d<ndimY;d++){
-          dcdy[i][d] += 4.0*a*(Y[i][d]-Y[i][d]);
+          dcdy[i][d] += 4.0*a*(Y[i][d]-Y[j][d]);
+          //console.log("dcdy["+i+"]["+d+"].["+j+"] += "+ 4.0*a*(Y[i][d]-Y[j][d]));
         }//for d
       }//if i!=j
     }// for j
@@ -183,9 +185,11 @@ TSNE.prototype.step = function(){
 
   //eq(7)
   //Y[i](t) = Y[i](t-1) + dcdY[i] + alpha(t)(Y[i](t-1)-Y[j](t-2))
-  step = new Array(N);
-  newY = new Array(N);
-  eta = this.param.eta;
+  eta   = this.param.eta;
+  alpha = this.param.alpha;
+  step  = new Array(N);
+  newY  = new Array(N);
+  meanY = new Array(N);
   for(var i=0;i<N;i++){
     step [i] = new Float64Array(ndimY);
     newY [i] = new Float64Array(ndimY);
