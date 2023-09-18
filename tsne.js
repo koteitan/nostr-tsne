@@ -5,10 +5,11 @@
 var TSNE=function(X, ndimY){
   this.init(X, ndimY);
 }
-TSNE.prototype.init=function(X, ndimY){
-  this.X=X;
+TSNE.prototype.init=function(D, ndimY){
+  this.D = D;
+  this.N=this.D.length;
+
   this.ndimY = ndimY;
-  this.N=this.X.length;
   this.Y=new Array(N);
   this.iter=0;
   this.param = {perpth:30, eta:100, alpha:0.5, maxiter:100};
@@ -25,22 +26,6 @@ TSNE.prototype.init=function(X, ndimY){
 
   //init P
 
-  //D[i][j]=|X[i]-X[j]|^2
-  var X = this.X;
-  var N = this.X.length;
-  var ndim = this.X[0].length;
-  var D = new Array(N);
-  for(var i=0;i<N;i++) D[i] = new Float64Array(N);
-  for(var i=0;i<N;i++){
-    for(var j=0;j<N;j++){
-      D[i][j]=0;
-      for(var d=0;d<ndim;d++){
-        var dX = X[i][d]-X[j][d];
-        D[i][j] += dX*dX;
-      }
-    }
-  }
-  this.D=D;
 
   var th      = this.param.perpth;
   var maxiter = 100;
@@ -214,3 +199,21 @@ TSNE.prototype.step = function(){
     }
   }
 }
+TSNE.data2distances=function(X){
+  //D[i][j]=|X[i]-X[j]|^2
+  var N = X.length;
+  var ndimX = X[0].length;
+  var D = new Array(N);
+  for(var i=0;i<N;i++) D[i] = new Float64Array(N);
+  for(var i=0;i<N;i++){
+    for(var j=0;j<N;j++){
+      D[i][j]=0;
+      for(var d=0;d<ndimX;d++){
+        var dX = X[i][d]-X[j][d];
+        D[i][j] += dX*dX;
+      }
+    }
+  }
+  return D;
+}
+

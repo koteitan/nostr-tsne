@@ -32,7 +32,8 @@ var initTsne=function(){
   gW = new Geom(2,[[-scale,-scale],[scale,scale]]);
   var N = digits.data.length;
   A=digits.target.slice(0,N-1); //use scikit
-  tsne=new TSNE(digits.data.slice(0,N-1), 2); //use scilit
+  var D = TSNE.data2distances(digits.data.slice(0,N-1)); //use scikit
+  tsne=new TSNE(D, 2);
   isTsneInit = true;
 };
 var procTsne=function(){
