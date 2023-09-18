@@ -13,10 +13,9 @@ window.onload = function(){
 }
 //tsne-------------------
 var N=digits.data.length;
-var Y;
 var A;
-var dimo;
-var dimi;
+var ndimY;
+var ndimX;
 var color=[
   [255,0,0],
   [0,255,0],
@@ -30,25 +29,22 @@ var color=[
   [0,255,127],
 ];
 var isTsneInit = false;
+var tsne;
 var initTsne=function(){
   gW = new Geom(2,[[-1,-1],[1,1]]);
-  dimi=64;
-  dimo=2;
-  Y=new Array(N);
-  for(var n=0;n<N;n++){
-    Y[n]=new Float64Array(dimo);
-    a = Math.sqrt(-2*Math.log(Math.random()));
-    t = Math.random()*2*Math.PI;
-    Y[n][0] = a*Math.cos(t);
-    Y[n][1] = a*Math.sin(t);
-    console.log(Y[n][0],",",Y[n][1]);
-  }
-  A=digits.target;
+  ndimX=64;
+  ndimY=2;
+  A=digits.target; //use scikit
+  tsne=new TSNE(digits.data); //use scilit
   isTsneInit = true;
 };
+var procTsne=function(){
+  tsne.step();
+}
 //game loop ------------------
 var procAll=function(){
   procEvent();
+  procTsne();
   if(isRequestedDraw){
     procDraw();
     isRequestedDraw = false;
@@ -80,7 +76,7 @@ var fontsize = 15;
 var radius = 15;
 var isRequestedDraw = true;
 var isSheetLoaded = false;
-var frameRate = 60; //[fps]
+var frameRate = 30; //[fps]
 //init
 var initDraw=function(){
   can = document.getElementById("outcanvas");
@@ -138,7 +134,7 @@ var procDraw = function(){
     //Y nodes
     sY=new Array(N);
     for(var n=0;n<N;n++){
-      sY[n]=transPosInt(Y[n],gW,gS);
+      sY[n]=transPosInt(tsne.Y[n],gW,gS);
     }
     ctx.lineWidth=0;
     for(var n=0;n<N;n++){
