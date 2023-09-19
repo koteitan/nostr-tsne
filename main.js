@@ -3,13 +3,62 @@ var isRelayLoaded = false;
 // fields--------------------
 var gW; /* world coordinate */
 //entry point--------------------
-window.onload = function(){
-  initHtml(); //get locale option
-  initTsne(); //use local option
+var printstatus=function(str){
+  document.getElementById("debug").innerHTML=str;
+}
+
+window.onload = async function(){
+  initHtml();
+
+  printstatus("initialize nostr...");
+  await initNostr();
+
+  printstatus("initialize t-SNE...");
+  await new Promise(resolve=>{setTimeout(()=>{
+    initTsne();
+    resolve();
+  },0);});
+
   initDraw();
   initEvent(can);
   window.onresize(); //after loading maps
-  setInterval(procAll, frameInterval*1000); //enter gameloop
+  setInterval(procAll, 0); //enter gameloop
+}
+//nostr------------------
+var relayurl="wss://yabu.me";
+var relay;
+var pubpool;
+var friendlist;
+var initNostr = async function(){
+  relay = window.NostrTools.relayInit(relayurl);
+  relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
+  await relay.connect();
+
+  var filter = [{"kinds":[3],"limit":100}];
+  sub = relay.sub(filter);
+  pubkeylist = []; // pubkeylist[i] = hex pubkey of i-th person
+  friendlist = []; // friendlist[i][0] and friendlist[i][1] is friend.
+  printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
+  await (async ()=>{
+    return new Promise((resolve)=>{
+      setTimeout(()=>resolve(), 5000); //timeout
+      sub.on("event",(ev)=>{
+        var a = pubkeylist.number(ev.pubkey);
+        var nb = ev.tags.length;
+        for(var ib=0;ib<nb;ib++){
+          var b = pubkeylist.number(ev.tags[ib][1]);
+          if(a<b){
+            friendlist.push([a,b]);
+          }else if(b<a){
+            friendlist.push([b,a]);
+          }
+        }//for ib
+        printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
+      });//sub.on("event",(ev)=>{
+      sub.on("eose",()=>{resolve();});
+    });//Promise(()=>{
+  })();//await(async()=>{
+  console.log("hey");
 }
 //tsne-------------------
 var A;
@@ -27,7 +76,7 @@ var color=[
 ];
 var isTsneInit = false;
 var tsne;
-var initTsne=function(){
+var initTsne=async function(){
   var scale=5;
   gW = new Geom(2,[[-scale,-scale],[scale,scale]]);
   var N = digits.data.length;

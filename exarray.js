@@ -179,3 +179,12 @@ Array.prototype.pushUniquely = function(e){
 Array.prototype.randomPop = function(){
   return this.splice(Math.floor(Math.random()*this.length),1)[0];
 }
+Array.prototype.number = function(v){
+  var n=this.indexOf(v);
+  if(n<0){
+    this.push(v);
+    return this.length-1;
+  }else{
+    return n;
+  }
+}
