@@ -2,7 +2,7 @@
 //let relayurl="wss://yabu.me";
 let relayurl="wss://relay.damus.io"; /* relay to be analysed */
 let limit     = 20000; /* max number of pubkeys */
-let minfollow = 10;    /* analysed users limitation by the number of follower */
+let minfollow = 30;    /* analysed users limitation by the number of follower */
 let isRelayLoaded = false;
 // fields--------------------
 let gW; /* world coordinate */
