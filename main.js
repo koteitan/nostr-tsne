@@ -1,17 +1,23 @@
 // nostr-------------------
-var isRelayLoaded = false;
+//let relayurl="wss://yabu.me";
+let relayurl="wss://relay.damus.io"; /* relay to be analysed */
+let limit     = 20000; /* max number of pubkeys */
+let minfollow = 10;    /* analysed users limitation by the number of follower */
+let isRelayLoaded = false;
 // fields--------------------
-var gW; /* world coordinate */
+let gW; /* world coordinate */
 //entry point--------------------
-var printstatus=function(str){
+let printstatus=function(str){
   document.getElementById("debug").innerHTML=str;
 }
 
 window.onload = async function(){
   initHtml();
 
-  printstatus("initialize nostr...");
-  await initNostr();
+  if(!is_data_digits){
+    printstatus("initialize nostr...");
+    await initNostr();
+  }
 
   printstatus("initialize t-SNE...");
   await new Promise(resolve=>{setTimeout(()=>{
@@ -25,44 +31,68 @@ window.onload = async function(){
   setInterval(procAll, 0); //enter gameloop
 }
 //nostr------------------
-var relayurl="wss://yabu.me";
-var relay;
-var pubpool;
-var friendlist;
-var initNostr = async function(){
+let relay;
+let pubpool;
+let friendlist;
+let followerlist;
+let initNostr = async function(){
   relay = window.NostrTools.relayInit(relayurl);
   relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
   await relay.connect();
-
-  var filter = [{"kinds":[3],"limit":100}];
-  sub = relay.sub(filter);
+  let isfinish = false;
+  let lastevent = 0;
   pubkeylist = []; // pubkeylist[i] = hex pubkey of i-th person
   friendlist = []; // friendlist[i][0] and friendlist[i][1] is friend.
-  printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
-  await (async ()=>{
-    return new Promise((resolve)=>{
-      setTimeout(()=>resolve(), 5000); //timeout
-      sub.on("event",(ev)=>{
-        var a = pubkeylist.number(ev.pubkey);
-        var nb = ev.tags.length;
-        for(var ib=0;ib<nb;ib++){
-          var b = pubkeylist.number(ev.tags[ib][1]);
-          if(a<b){
-            friendlist.push([a,b]);
-          }else if(b<a){
-            friendlist.push([b,a]);
+  do{
+    let filter;
+    if(lastevent==0){
+      filter = [{"kinds":[3],"limit":500}];
+    }else{
+      filter = [{"until":lastevent,"kinds":[3],"limit":500}];
+    }
+    sub = relay.sub(filter);
+    let events = 0;
+    await (async ()=>{
+      return new Promise((resolve)=>{
+        setTimeout(()=>resolve(), 30000); //timeout
+        sub.on("event",(ev)=>{
+          events++;
+          //console.log("ev.created_at="+ev.created_at);
+          if(ev.created_at<lastevent || lastevent==0){
+            lastevent = ev.created_at;
           }
-        }//for ib
-        printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
-      });//sub.on("event",(ev)=>{
-      sub.on("eose",()=>{resolve();});
-    });//Promise(()=>{
-  })();//await(async()=>{
-  console.log("hey");
+          if(ev.tags.length<minfollow){return;}
+          let a = pubkeylist.number(ev.pubkey);
+          let nb = ev.tags.length;
+          for(let ib=0;ib<nb;ib++){
+            let b = pubkeylist.number(ev.tags[ib][1]);
+            if(a<b){
+              friendlist.push([a,b]);
+            }else if(b<a){
+              friendlist.push([b,a]);
+            }else{
+              //ignore self
+            }
+          }//for ib
+          printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
+        });//sub.on("event",(ev)=>{
+        sub.on("eose",()=>{
+          //console.log("eose");
+          //console.log("lastevent="+lastevent);
+          resolve();
+        });
+      });//Promise(()=>{
+    })();//await(async()=>{
+    if(events==0||pubkeylist.length>=limit){
+      isfinish = true;
+    }
+  }while(!isfinish);
+  sub.unsub();
+  relay.close();
 }
 //tsne-------------------
-var A;
-var color=[
+let A;
+let color=[
   [255,0,0],
   [0,255,0],
   [0,0,255],
@@ -74,32 +104,85 @@ var color=[
   [255,0,127],
   [0,255,127],
 ];
-var isTsneInit = false;
-var tsne;
-var initTsne=async function(){
-  var scale=5;
+let isTsneInit = false;
+let tsne;
+let is_data_digits = false;
+let initTsne=async function(){
+  let scale=5;
   gW = new Geom(2,[[-scale,-scale],[scale,scale]]);
-  var N = digits.data.length;
-  A=digits.target.slice(0,N-1); //use scikit
-  var D = TSNE.data2distances(digits.data.slice(0,N-1)); //use scikit
+  let D;
+  if(is_data_digits){
+    let N = digits.data.length;
+    A = digits.target.slice(0,N-1); //use scikit
+    D = TSNE.data2distances(digits.data.slice(0,N-1)); //use scikit
+  }else{
+    // count followers
+    followerlist = new Array(pubkeylist.length);
+    for(let p=0;p<pubkeylist.length;p++){
+      followerlist[p]=0;
+    }
+    for(let p=0;p<pubkeylist.length;p++){
+      for(let i=0;i<friendlist.length;i++){
+        if(friendlist[i][0]==p || friendlist[i][1]==p){
+          followerlist[p]++;
+        }
+      }
+    }
+    // remove user with less than 10 followers and update pubkeylist
+    let pubkeylist2 = [];
+    let pubkeymap = new Array(pubkeylist.length);
+    for(let p=0;p<pubkeylist.length;p++){
+      if(followerlist[p]>=minfollow){
+        pubkeylist2.push(pubkeylist[p]);
+        pubkeymap[p]=pubkeylist2.length-1;
+      }
+    }
+    pubkeylist = pubkeylist2.clone();
+    // remove user with less than 10 followers and update friendlist
+    let friendlist2 = [];
+    for(let i=0;i<friendlist.length;i++){
+      let a = friendlist[i][0];
+      let b = friendlist[i][1];
+      if(followerlist[a]>=minfollow && followerlist[b]>=minfollow){
+        friendlist2.push([pubkeymap[a],pubkeymap[b]]);
+      }
+    }
+    friendlist = friendlist2.clone();
+
+    /* friendlist2[i][2] to D[i][j] */
+    let N = pubkeylist.length;
+    D = new Array(N);
+    for(let i=0;i<N;i++){
+      D[i]=new Array(N);
+      for(let j=0;j<N;j++){
+        D[i][j]=0;
+      }
+    }
+    for(let i=0;i<friendlist.length;i++){
+      let a = friendlist[i][0];
+      let b = friendlist[i][1];
+      D[a][b]=1;
+      D[b][a]=1;
+    }
+  }
   tsne=new TSNE(D, 2);
   isTsneInit = true;
 
   //performance counter
   elapsehist=new Array(10);
-  for(var i=0;i<elapsehist.length;i++){
+  for(let i=0;i<elapsehist.length;i++){
     elapsehist[i]=frameInterval;
   }
 };
-var movfilter;
-var procTsne=function(){
-  var t0=(new Date).getTime()/1000;
+let movfilter;
+let procTsne=function(){
+  let t0=(new Date).getTime()/1000;
   tsne.step();
-  var t1=(new Date).getTime()/1000;
-  var dt = t1-t0;
+  let t1=(new Date).getTime()/1000;
+  let dt = t1-t0;
   elapsehist.shift();
   elapsehist.push(dt);
-  var mean=elapsehist.mean();
+  let mean=elapsehist.mean();
   frameInterval = [mean/targetLoad, frameIntervalMin].max();
   document.getElementById("debug").innerHTML=
     "this frame: "+Math.floor(dt  *1000)+" [ms] "+
@@ -108,7 +191,7 @@ var procTsne=function(){
   isRequestedDraw = true;
 }
 //game loop ------------------
-var procAll=function(){
+let procAll=function(){
   procEvent();
   procTsne();
   if(isRequestedDraw){
@@ -116,48 +199,47 @@ var procAll=function(){
     isRequestedDraw = false;
   }
 }
-var initHtml=function(){
+let initHtml=function(){
   //debug = document.getElementById('debug');
   if(navigator.language=='ja'){
   }
 }
 
 // html ----------------------------
-var debug;
+let debug;
 window.onresize = function(){ //browser resize
-  var wx,wy;
-  var agent = navigator.userAgent;
-  var wx= [(document.documentElement.clientWidth - 20)*0.98, 320].max();
-  var wy= [(document.documentElement.clientHeight-250)     ,  20].max();
+  let agent = navigator.userAgent;
+  let wx= [(document.documentElement.clientWidth - 20)*0.98, 320].max();
+  let wy= [(document.documentElement.clientHeight-250)     ,  20].max();
   document.getElementById("outcanvas").width = wx;
   document.getElementById("outcanvas").height= wy;
   renewgS();
   isRequestedDraw = true;
 };
 // graphics ------------------------
-var ctx;
-var can;
-var gS;
-var fontsize = 15;
-var radius = 15;
-var isRequestedDraw = true;
-var isSheetLoaded = false;
-var frameInterval    = 0.5;  //[sec]
-var frameIntervalMin = 0.25; //[sec]
-var targetLoad = 0.8; //1.0=100%
+let ctx;
+let can;
+let gS;
+let fontsize = 15;
+let radius = 15;
+let isRequestedDraw = true;
+let isSheetLoaded = false;
+let frameInterval    = 0.5;  //[sec]
+let frameIntervalMin = 0.25; //[sec]
+let targetLoad = 0.8; //1.0=100%
 //init
-var initDraw=function(){
+let initDraw=function(){
   can = document.getElementById("outcanvas");
   ctx = can.getContext('2d');
   renewgS();
 }
-var renewgS=function(){
-  var minwidth = [can.height, can.width].min();
-  var s=[[0,minwidth],[minwidth,0]];
+let renewgS=function(){
+  let minwidth = [can.height, can.width].min();
+  let s=[[0,minwidth],[minwidth,0]];
   gS = new Geom(2,s);
 }
 //proc
-var procDraw = function(){
+let procDraw = function(){
 
   //background
   ctx.fillStyle="white";
@@ -165,31 +247,31 @@ var procDraw = function(){
 
   //grid line -----------------------
   //get screen in world coordinate
-  var scr = [transPos([0,can.height], gS, gW), transPos([can.width,0], gS, gW)];
-  var base=8;
-  var L=Math.log10(scr[1][0]-scr[0][0])/Math.log10(base);
-  var intL=Math.floor(L);
-  var fracL=L-intL;
-  var intL =Math.pow(base,intL);
-  var fracL=Math.pow(base,fracL)/base;
-  var depths = 3;
+  let scr = [transPos([0,can.height], gS, gW), transPos([can.width,0], gS, gW)];
+  let base=8;
+  let L=Math.log10(scr[1][0]-scr[0][0])/Math.log10(base);
+  let intL=Math.floor(L);
+  let fracL=L-intL;
+  intL =Math.pow(base,intL);
+  fracL=Math.pow(base,fracL)/base;
+  let depths = 3;
   //debug.innerHTML = "intL="+intL+"\n";
   //debug.innerHTML += "fracL="+fracL+"\n";
-  for(var depth=depths-1;depth>=0;depth--){
-    var qw = intL/Math.pow(base,depth);
-    var c = Math.floor(((depth+fracL)/depths)*64+64+127);
+  for(let depth=depths-1;depth>=0;depth--){
+    let qw = intL/Math.pow(base,depth);
+    let c = Math.floor(((depth+fracL)/depths)*64+64+127);
     //debug.innerHTML += "c("+depth+") = "+c+"\n";
     ctx.lineWidth=1;
     ctx.strokeStyle='rgb('+c+','+c+','+c+')';
-    for(var d=0;d<gW.dims;d++){
-      var q0 = Math.floor((scr[0][d])/qw)*qw;
-      var q1 = Math.ceil ((scr[1][d])/qw)*qw;
+    for(let d=0;d<gW.dims;d++){
+      let q0 = Math.floor((scr[0][d])/qw)*qw;
+      let q1 = Math.ceil ((scr[1][d])/qw)*qw;
 
-      for(var q=q0;q<q1;q+=qw){
-        var wq = scr.clone();
+      for(let q=q0;q<q1;q+=qw){
+        let wq = scr.clone();
         wq[0][d]=q;
         wq[1][d]=q;
-        var sq = [transPosInt(wq[0],gW,gS), transPosInt(wq[1],gW,gS)];
+        let sq = [transPosInt(wq[0],gW,gS), transPosInt(wq[1],gW,gS)];
         ctx.beginPath();
         ctx.moveTo(sq[0][0],sq[0][1]);
         ctx.lineTo(sq[1][0],sq[1][1]);
@@ -202,12 +284,16 @@ var procDraw = function(){
     //Y nodes
     N=tsne.N;
     sY=new Array(N);
-    for(var n=0;n<N;n++){
+    for(let n=0;n<N;n++){
       sY[n]=transPosInt(tsne.Y[n],gW,gS);
     }
     ctx.lineWidth=0;
-    for(var n=0;n<N;n++){
-      ctx.fillStyle='rgb('+color[A[n]][0]+','+color[A[n]][1]+','+color[A[n]][2]+')';
+    for(let n=0;n<N;n++){
+      if(is_data_digits){
+        ctx.fillStyle='rgb('+color[A[n]][0]+','+color[A[n]][1]+','+color[A[n]][2]+')';
+      }else{
+        ctx.fillStyle='rgb(0,0,0)';
+      }
       ctx.beginPath();
       ctx.arc(sY[n][0], sY[n][1], 2, 0, 2*Math.PI);
       ctx.fill();
@@ -215,30 +301,30 @@ var procDraw = function(){
   }
 }
 //event---------------------
-var downpos=[-1,-1];// start of drag
-var movpos =[-1,-1];// while drag
-var handleMouseDown = function(){
+let downpos=[-1,-1];// start of drag
+let movpos =[-1,-1];// while drag
+let handleMouseDown = function(){
   downpos = transPos(mouseDownPos,gS,gW);
   movpos[0] = downpos[0];
   movpos[1] = downpos[1];
 }
-var handleMouseDragging = function(){
+let handleMouseDragging = function(){
   movpos = transPos(mousePos,gS,gW);
-  for(var i=0;i<2;i++){
-    for(var d=0;d<2;d++){
+  for(let i=0;i<2;i++){
+    for(let d=0;d<2;d++){
       gW.w[i][d] -= movpos[d]-downpos[d];
     }
   }
   isRequestedDraw = true;
 }
-var handleMouseUp = function(){
+let handleMouseUp = function(){
   isRequestedDraw = true;
 }
-var handleMouseWheel = function(){
-  var pos=transPos(mousePos,gS,gW);
-  var oldw=gW.w.clone();
-  for(var i=0;i<2;i++){
-    for(var d=0;d<2;d++){
+let handleMouseWheel = function(){
+  let pos=transPos(mousePos,gS,gW);
+  let oldw=gW.w.clone();
+  for(let i=0;i<2;i++){
+    for(let d=0;d<2;d++){
       gW.w[i][d] = (oldw[i][d]-pos[d])*Math.pow(1.1, -mouseWheel[1]/200)+pos[d];
     }
   }
