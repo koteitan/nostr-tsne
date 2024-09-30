@@ -10,6 +10,7 @@ let printstatus=function(str){
 window.onload = async function(){
   initHtml();
   printstatus("please press start button");
+  window.onresize();
 }
 
 let start = async function(){
@@ -32,7 +33,7 @@ let start = async function(){
 
   initDraw();
   initEvent(can);
-  window.onresize(); //after loading maps
+  window.onresize();
   setInterval(procAll, 0); //enter gameloop
 }
 //nostr------------------
