@@ -43,6 +43,7 @@ let initNostr = async function(){
   let lastevent = 0;
   pubkeylist = []; // pubkeylist[i] = hex pubkey of i-th person
   friendlist = []; // friendlist[i][0] and friendlist[i][1] is friend.
+  // correct kind:3
   do{
     let filter;
     if(lastevent==0){
@@ -75,6 +76,68 @@ let initNostr = async function(){
             }
           }//for ib
           printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
+          if(pubkeylist.length>=limit){
+            resolve();
+          }
+        });//sub.on("event",(ev)=>{
+        sub.on("eose",()=>{
+          //console.log("eose");
+          //console.log("lastevent="+lastevent);
+          resolve();
+        });
+      });//Promise(()=>{
+    })();//await(async()=>{
+    if(events==0||pubkeylist.length>=limit){
+      isfinish = true;
+    }
+  }while(!isfinish);
+  sub.unsub();
+  relay.close();
+
+  await getProfile();
+  for(let i=0;i<pubkeylist.length;i++){
+    if(namelist[i]==""){
+      namelist[i]=pubkeylist[i].slice(0,8);
+    }
+  }
+}
+
+let namelist;
+let getProfile = async function(){
+  relay = window.NostrTools.relayInit(relayurl);
+  relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
+  await relay.connect();
+  let isfinish = false;
+  let lastevent = 0;
+  namelist = new Array(pubkeylist.length);
+  for(let i=0;i<pubkeylist.length;i++){
+    namelist[i]="";
+  }
+  // correct kind:0
+  do{
+    let filter;
+    if(lastevent==0){
+      filter = [{"kinds":[0],"limit":500}];
+    }else{
+      filter = [{"until":lastevent,"kinds":[0],"limit":500}];
+    }
+    sub = relay.sub(filter);
+    let events = 0;
+    await (async ()=>{
+      return new Promise((resolve)=>{
+        setTimeout(()=>resolve(), 30000); //timeout
+        sub.on("event",(ev)=>{
+          events++;
+          //console.log("ev.created_at="+ev.created_at);
+          if(ev.created_at<lastevent || lastevent==0){
+            lastevent = ev.created_at;
+          }
+          let name = JSON.parse(ev.content).name;
+          let npub = ev.pubkey;
+          let n = pubkeylist.number(npub);
+          if(n>=0){
+            namelist[n]=name;
+          }
         });//sub.on("event",(ev)=>{
         sub.on("eose",()=>{
           //console.log("eose");
