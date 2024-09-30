@@ -1,8 +1,12 @@
 // nostr-------------------
 //let relayurl="wss://yabu.me";
+//let limit     = 20000; /* max number of pubkeys */
+//let minfollow = 30;    /* analysed users limitation by the number of follower */
+
 let relayurl="wss://relay.damus.io"; /* relay to be analysed */
 let limit     = 20000; /* max number of pubkeys */
 let minfollow = 30;    /* analysed users limitation by the number of follower */
+
 let isRelayLoaded = false;
 // fields--------------------
 let gW; /* world coordinate */
@@ -35,6 +39,7 @@ let relay;
 let pubpool;
 let friendlist;
 let followerlist;
+let npubEncode = window.NostrTools.nip19.npubEncode;
 let initNostr = async function(){
   relay = window.NostrTools.relayInit(relayurl);
   relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
@@ -63,10 +68,10 @@ let initNostr = async function(){
             lastevent = ev.created_at;
           }
           if(ev.tags.length<minfollow){return;}
-          let a = pubkeylist.number(ev.pubkey);
+          let a = pubkeylist.number(npubEncode(ev.pubkey));
           let nb = ev.tags.length;
           for(let ib=0;ib<nb;ib++){
-            let b = pubkeylist.number(ev.tags[ib][1]);
+            let b = pubkeylist.number(npubEncode(ev.tags[ib][1]));
             if(a<b){
               friendlist.push([a,b]);
             }else if(b<a){
@@ -75,7 +80,7 @@ let initNostr = async function(){
               //ignore self
             }
           }//for ib
-          printstatus("initializing nostr...analysing "+pubkeylist.length+" followers in the relay...");
+          printstatus("initializing nostr...analysing "+pubkeylist.length+" / "+ limit +" followers in the relay "+ relayurl +"...");
           if(pubkeylist.length>=limit){
             resolve();
           }
@@ -97,7 +102,12 @@ let initNostr = async function(){
   await getProfile();
   for(let i=0;i<pubkeylist.length;i++){
     if(namelist[i]==""){
-      namelist[i]=pubkeylist[i].slice(0,8);
+      tmp=pubkeylist[i];
+      //sanitize html tag
+      tmp=tmp.replace(/&/g,"&amp;");
+      tmp=tmp.replace(/</g,"&lt;");
+      tmp=tmp.replace(/>/g,"&gt;");
+      namelist[i]=tmp;
     }
   }
 }
@@ -107,6 +117,8 @@ let getProfile = async function(){
   relay = window.NostrTools.relayInit(relayurl);
   relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
   await relay.connect();
+  let nnamegot = 0;
+  let nevent = 0;
   let isfinish = false;
   let lastevent = 0;
   namelist = new Array(pubkeylist.length);
@@ -133,11 +145,13 @@ let getProfile = async function(){
             lastevent = ev.created_at;
           }
           let name = JSON.parse(ev.content).name;
-          let npub = ev.pubkey;
-          let n = pubkeylist.number(npub);
+          let npub = window.NostrTools.nip19.npubEncode(ev.pubkey);
+          let n = pubkeylist.indexOf(npub);
           if(n>=0){
             namelist[n]=name;
+            nnamegot++;
           }
+          printstatus("getting profile..."+nnamegot+" / "+events+" kind:0 events in the relay...");
         });//sub.on("event",(ev)=>{
         sub.on("eose",()=>{
           //console.log("eose");
@@ -273,7 +287,7 @@ let debug;
 window.onresize = function(){ //browser resize
   let agent = navigator.userAgent;
   let wx= [(document.documentElement.clientWidth - 20)*0.98, 320].max();
-  let wy= [(document.documentElement.clientHeight-250)     ,  20].max();
+  let wy= [(document.documentElement.clientHeight-300)     ,  20].max();
   document.getElementById("outcanvas").width = wx;
   document.getElementById("outcanvas").height= wy;
   renewgS();
@@ -347,8 +361,9 @@ let procDraw = function(){
     //Y nodes
     N=tsne.N;
     sY=new Array(N);
+    Y=tsne.Y;
     for(let n=0;n<N;n++){
-      sY[n]=transPosInt(tsne.Y[n],gW,gS);
+      sY[n]=transPosInt(Y[n],gW,gS);
     }
     ctx.lineWidth=0;
     for(let n=0;n<N;n++){
@@ -361,15 +376,45 @@ let procDraw = function(){
       ctx.arc(sY[n][0], sY[n][1], 2, 0, 2*Math.PI);
       ctx.fill();
     }
+    // find nearest node with downpos
+    if(downpos[0]!=undefined){
+      if(seluser_renewed){
+        seluser = -1;
+        seluser_d = 1000000;
+        for(let n=0;n<N;n++){
+          let d = (Y[n][0]-downpos[0])*(Y[n][0]-downpos[0])+(Y[n][1]-downpos[1])*(Y[n][1]-downpos[1]);
+          if(d<seluser_d){
+            seluser  =n;
+            seluser_d=d;
+          }
+        }
+        document.getElementById("selecteduserlink").innerHTML=
+          "selected username = <a href='https://nostter.app/"+pubkeylist[seluser]+"' target='_blank'>"+namelist[seluser]+"</a><br>";
+      }
+      if(seluser>=0){
+        ctx.StrokeStyle='rgb(255,0,0)';
+        ctx.beginPath();
+        ctx.arc(sY[seluser][0], sY[seluser][1], radius, 0, 2*Math.PI);
+        ctx.stroke();
+        ctx.fillStyle='rgb(0,0,255)';
+        ctx.fillText(namelist[seluser], sY[seluser][0]+radius, sY[seluser][1]+radius);
+        seluser_renewed = false;
+      }
+    }//downpos is valid
   }
 }
 //event---------------------
-let downpos=[-1,-1];// start of drag
+let downpos=[undefined,undefined];// while mouse down
+let seluser_renewed = false;
 let movpos =[-1,-1];// while drag
+let seluser_d = 1000000;
+let seluser = -1;
 let handleMouseDown = function(){
   downpos = transPos(mouseDownPos,gS,gW);
   movpos[0] = downpos[0];
   movpos[1] = downpos[1];
+  seluser_renewed = true;
+
 }
 let handleMouseDragging = function(){
   movpos = transPos(mousePos,gS,gW);
