@@ -1,12 +1,4 @@
 // nostr-------------------
-//let relayurl="wss://yabu.me";
-//let limit     = 20000; /* max number of pubkeys */
-//let minfollow = 30;    /* analysed users limitation by the number of follower */
-
-let relayurl="wss://relay.damus.io"; /* relay to be analysed */
-let limit     = 20000; /* max number of pubkeys */
-let minfollow = 30;    /* analysed users limitation by the number of follower */
-
 let isRelayLoaded = false;
 // fields--------------------
 let gW; /* world coordinate */
@@ -17,6 +9,15 @@ let printstatus=function(str){
 
 window.onload = async function(){
   initHtml();
+  printstatus("please press start button");
+}
+
+let start = async function(){
+  //disable start button
+  form1.startbutton.disabled = true;
+  relayurl = form1.relayurl.value;
+  limit = form1.limit.value;
+  minfollow = form1.minfollow.value;
 
   if(!is_data_digits){
     printstatus("initialize nostr...");
