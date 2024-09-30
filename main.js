@@ -429,12 +429,33 @@ let handleMouseDragging = function(){
 let handleMouseUp = function(){
   isRequestedDraw = true;
 }
-let handleMouseWheel = function(){
+let handleMouseWheel = function(){ //zoom in/out
   let pos=transPos(mousePos,gS,gW);
   let oldw=gW.w.clone();
   for(let i=0;i<2;i++){
     for(let d=0;d<2;d++){
       gW.w[i][d] = (oldw[i][d]-pos[d])*Math.pow(1.1, -mouseWheel[1]/200)+pos[d];
+    }
+  }
+  gW.recalc();
+  isRequestedDraw = true;
+}
+let zoom = function(value){ // value=+1:zoom in, value=-1:zoom out
+  let pos;
+  if(downpos[0]!=undefined){
+    //zoom by last mouse down position
+    pos = downpos.clone();
+  }else{
+    //zoom by center
+    let wx = document.getElementById("outcanvas").width;
+    let wy = document.getElementById("outcanvas").height;
+    spos = [wx/2,wy/2];
+    pos = transPos(spos,gS,gW);
+  }
+  let oldw=gW.w.clone();
+  for(let i=0;i<2;i++){
+    for(let d=0;d<2;d++){
+      gW.w[i][d] = (oldw[i][d]-pos[d])*Math.pow(1.1, -value*5)+pos[d];
     }
   }
   gW.recalc();

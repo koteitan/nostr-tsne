@@ -10,17 +10,21 @@
     <body>
         <h1>nostr-tsne</h1>
         <form name="form1">
-          Collect <input type=text name="limit" value="20000" size=5> users 
-          with <input type=text name="minfollow" value="30" size=5> or greater followers 
-          in relay <input type=text name="relayurl" value="wss://relay.damus.io" size=40> 
-          <input name="startbutton" type="button" value="start" onclick="start();">
+          <input name="startbutton" type="button" value="Start" onclick="start();"> to 
+          collect <input type=text name="limit" value="20000" size=5> users 
+          with <input type=text name="minfollow" value="30" size=3> or greater followers 
+          in relay <input type=text name="relayurl" value="wss://relay.damus.io" size=20> 
           <!input name="button1" type="button" value="step" onclick="procTsne();">
         </form>
         <p id="debug">wait for prepairing...</p>
         <canvas id="outcanvas" width=600px height=600px style="border-style:solid"></canvas>
+        <form name="form2">
+          <input name="zoomin" type="button" value="+" onclick="zoom(+1);">
+          <input name="zoomout" type="button" value="-" onclick="zoom(-1);">
+        </form>
         <p id="selecteduserlink"></p>
         <address>
-          <a href="./">nostr-tsne</a> version 0.13<br>
+          <a href="./">nostr-tsne</a> version 0.14<br>
             Programmed by <a href="https://nostter.app/koteitan.github.io">koteitan</a><br>
             Source code is on <a href="https://github.com/koteitan/nostr-tsne">github</a><br>
             The program and the site is licensed by <a href="https://github.com/koteitan/nostr-tsne/blob/master/LICENSE.md">MIT License</a>.
