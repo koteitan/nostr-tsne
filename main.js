@@ -234,7 +234,7 @@ let initTsne=async function(){
     for(let i=0;i<N;i++){
       D[i]=new Array(N);
       for(let j=0;j<N;j++){
-        D[i][j]=0;
+        D[i][j]=10000;
       }
     }
     for(let i=0;i<friendlist.length;i++){
