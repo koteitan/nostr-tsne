@@ -6,7 +6,17 @@ let gW; /* world coordinate */
 let printstatus=function(str){
   document.getElementById("debug").innerHTML=str;
 }
-
+const printstatus_relaycount=function(relayEventCount, limitperrelay){
+  let str = "initializing nostr...<br>";
+  for(let i=0;i<nrelay;i++){
+    str+=neventlist[i]+" / "+ limitperrelay +" followers in the relay "+ relayurl[i];
+    if(eoselist[i]){
+      str+=" (EOSE)";
+    }
+    str+="<br>"; 
+  }
+  document.getElementById("debug").innerHTML=str;
+}
 window.onload = async function(){
   initHtml();
   printstatus("please press start button");
@@ -14,8 +24,9 @@ window.onload = async function(){
 }
 
 let start = async function(){
-  //disable start button
   form1.startbutton.disabled = true;
+  form1.skipbutton.disabled = false;
+
   limit = form1.limit.value;
   minfollow = form1.minfollow.value;
 
@@ -36,45 +47,145 @@ let start = async function(){
   setInterval(procAll, 0); //enter gameloop
 }
 //nostr------------------
-let relayurl = ["wss://relay.damus.io","wss://r.kojira.io","wss://nos.lol"];
+put_my_relay = async function(kind){
+    printstatus("wait for your relays...");
+    try{
+      let list = await get_my_relay(kind);
+      form1.relayurl.value = "";
+      for(relay of list){
+        form1.relayurl.value += relay + "\n";
+      }
+    }catch(e){
+      printstatus(e);
+    }
+}
+async function get_my_relay(kind){
+  let bsrelay;
+  if(window.nostr !== undefined){
+    bsrelay = await window.nostr.getRelays();
+  }else{
+    throw "Please set NIP-07 browser extension."
+  }
+  let relaylist = Object.keys(bsrelay);
+  let filter = [{"kinds":[kind],"authors":[await window.nostr.getPublicKey()]}];
+  let resultlist = await Promise.allSettled(relaylist.map(async (url)=>{
+    let result = [];
+
+    await Promise.race([new Promise(async (resolve, reject)=>{
+      let relay = window.NostrTools.relayInit(url);
+      relay.on("error",()=>{
+        reject();
+      });
+      try{
+        await relay.connect();
+        sub = relay.sub(filter);
+        resolve();
+      }catch{
+        return new Promise((resolve)=>{resolve([]);});
+      }
+    }),new Promise((resolve,reject)=>{
+      setTimeout(reject, 1000);
+    })]).catch(err=>{return new Promise((resolve)=>{resolve([]);});});
+
+    return new Promise((resolve)=>{
+      setTimeout(()=>resolve(result), 3000);
+      sub.on("event",(ev)=>{
+        if(kind==3){
+          result.push({
+            time     :ev.created_at,
+            relaylist:Object.keys(JSON.parse(ev.content)),
+            origin   :url,
+          });
+        }else if(kind==10002){
+          let rl=[];
+          for(t of ev.tags){
+            rl.push(t[1]);
+          }
+          result.push({
+            time     :ev.created_at,
+            relaylist:rl,
+            origin   :url,
+          });
+        }
+      });
+      sub.on("eose",()=>{
+        console.log("found:"+url);
+        resolve(result);
+      });
+    });
+  })).then(results=>{
+    console.log("debug:-------");
+    latest = {time:0, relaylist:[]};
+    for(r1 of results){
+      if(r1.status=='rejected')continue;
+      for(r2 of r1.value){
+        if(r2.time > latest.time){
+          latest = r2;
+        }
+      }
+    }
+    return latest.relaylist;
+  });
+  return resultlist;
+}
+let relayurl;
+let nrelay;
 let pubpool;
 let friendlist;
 let namelist;
 let relaylist = [];
+let neventlist = [];
+let eoselist = [];
 let followerlist;
 let npubEncode = window.NostrTools.nip19.npubEncode;
 
 const initNostr = async function(){
   pubkeylist = []; // pubkeylist[i] = hex pubkey of i-th person
   friendlist = []; // friendlist[i][0] and friendlist[i][1] is friend.
+  //get relay url from the form
+  relayurlstr = form1.relayurl.value;
+  relayurlstr = relayurlstr.replace(/ */g, '');
+  relayurlstr = relayurlstr.replace(/\n\n/g, '\n');
+  relayurlstr = relayurlstr.replace(/\n$/g, '');
+  relayurl = relayurlstr.split("\n");
+  nrelay = relayurl.length;
+  for(let i=0;i<nrelay;i++){
+    neventlist[i]=0;
+    eoselist[i]=false;
+  }
+ 
   await Promise.allSettled(relayurl.map(async (url)=>{
     let relay = window.NostrTools.relayInit(url);
     relay.on("error",()=>{console.log("error:relay.on for the relay "+url);});
     await relay.connect();
     let isfinish = false;
     let lastevent = 0;
-    let relayEventCount = 0; // Counter for each relay
     do{
+      let ri=relayurl.indexOf(url);
+      let limitr = Math.min(Math.floor(limit/nrelay-neventlist[ri]), 500);
       let filter;
       if(lastevent==0){
-        filter = [{"kinds":[3],"limit":500}];
+        filter = [{"kinds":[3],"limit":limitr}];
       }else{
-        filter = [{"until":lastevent,"kinds":[3],"limit":500}];
+        filter = [{"until":lastevent,"kinds":[3],"limit":limitr}];
       }
       sub = relay.sub(filter);
       let events = 0;
       await (async ()=>{
         return new Promise((resolve)=>{
           console.log("start on "+url);
-          setTimeout(()=>resolve(), 30000); //timeout
           sub.on("event",(ev)=>{
+            if(isskip){
+              resolve();
+              return;
+            }
             let ri=relayurl.indexOf(url);
             events++;
-            relayEventCount++;
             if(ev.created_at<lastevent || lastevent==0){
               lastevent = ev.created_at;
             }
             if(ev.tags.length<minfollow){return;}
+            neventlist[ri]++;
             let a = pubkeylist.number(npubEncode(ev.pubkey));
             addRelay(ri,a);
             let nb = ev.tags.length;
@@ -88,26 +199,28 @@ const initNostr = async function(){
                 //ignore self
               }
             }//for ib
-            printstatus("initializing nostr...analysing "+relayEventCount+" / "+ limit +" followers in the relay "+ url +"...");
-            if(relayEventCount >= limit){
+            let limitperrelay = Math.floor(limit/nrelay);
+            printstatus_relaycount(neventlist[ri], limitperrelay);
+            //printstatus("initializing nostr...analysing "+neventlist[ri]+" / "+ limitperrelay +" followers in the relay "+ url +"...");
+            if(neventlist[ri] >= limitperrelay){
               resolve();
             }
           });//sub.on("event",(ev)=>{
           sub.on("eose",()=>{
-            console.log("got eose on "+ri+" "+url);
+            eoselist[ri]=true;
             resolve();
           });
         });//Promise(()=>{
       })();//await(async()=>{
-      console.log("events="+events+" relay="+url);
-      if(events==0 || relayEventCount >= limit){
+      if(events==0 || neventlist[ri]>= limitperrelay){
         isfinish = true;
       }
-    }while(!isfinish);
+    }while(!isskip && !isfinish);
     sub.unsub();
     relay.close();
   }));
 
+  form1.skipbutton.disabled = true;
   console.log("getProfile");
   await getProfile();
 
@@ -183,6 +296,10 @@ const getProfile = async function(){
   }while(!isfinish);
   sub.unsub();
   relay.close();
+}
+let isskip = false;
+const skipcollection = function(){
+  isskip = true;
 }
 //tsne-------------------
 let A;
