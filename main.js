@@ -16,7 +16,6 @@ window.onload = async function(){
 let start = async function(){
   //disable start button
   form1.startbutton.disabled = true;
-  relayurl = form1.relayurl.value;
   limit = form1.limit.value;
   minfollow = form1.minfollow.value;
 
@@ -37,71 +36,84 @@ let start = async function(){
   setInterval(procAll, 0); //enter gameloop
 }
 //nostr------------------
-let relay;
+let relayurl = ["wss://relay.damus.io","wss://r.kojira.io","wss://nos.lol"];
 let pubpool;
 let friendlist;
+let namelist;
+let relaylist = [];
 let followerlist;
 let npubEncode = window.NostrTools.nip19.npubEncode;
-let initNostr = async function(){
-  relay = window.NostrTools.relayInit(relayurl);
-  relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
-  await relay.connect();
-  let isfinish = false;
-  let lastevent = 0;
+
+const initNostr = async function(){
   pubkeylist = []; // pubkeylist[i] = hex pubkey of i-th person
   friendlist = []; // friendlist[i][0] and friendlist[i][1] is friend.
-  // correct kind:3
-  do{
-    let filter;
-    if(lastevent==0){
-      filter = [{"kinds":[3],"limit":500}];
-    }else{
-      filter = [{"until":lastevent,"kinds":[3],"limit":500}];
-    }
-    sub = relay.sub(filter);
-    let events = 0;
-    await (async ()=>{
-      return new Promise((resolve)=>{
-        setTimeout(()=>resolve(), 30000); //timeout
-        sub.on("event",(ev)=>{
-          events++;
-          //console.log("ev.created_at="+ev.created_at);
-          if(ev.created_at<lastevent || lastevent==0){
-            lastevent = ev.created_at;
-          }
-          if(ev.tags.length<minfollow){return;}
-          let a = pubkeylist.number(npubEncode(ev.pubkey));
-          let nb = ev.tags.length;
-          for(let ib=0;ib<nb;ib++){
-            let b = pubkeylist.number(npubEncode(ev.tags[ib][1]));
-            if(a<b){
-              friendlist.push([a,b]);
-            }else if(b<a){
-              friendlist.push([b,a]);
-            }else{
-              //ignore self
+  await Promise.allSettled(relayurl.map(async (url)=>{
+    let relay = window.NostrTools.relayInit(url);
+    relay.on("error",()=>{console.log("error:relay.on for the relay "+url);});
+    await relay.connect();
+    let isfinish = false;
+    let lastevent = 0;
+    do{
+      let filter;
+      if(lastevent==0){
+        filter = [{"kinds":[3],"limit":500}];
+      }else{
+        filter = [{"until":lastevent,"kinds":[3],"limit":500}];
+      }
+      sub = relay.sub(filter);
+      let events = 0;
+      await (async ()=>{
+        return new Promise((resolve)=>{
+          console.log("start on "+url);
+          setTimeout(()=>resolve(), 30000); //timeout
+          sub.on("event",(ev)=>{
+            let ri=relayurl.indexOf(url);
+            console.log("got event on "+ri+" "+url);
+            events++;
+            //console.log("ev.created_at="+ev.created_at);
+            if(ev.created_at<lastevent || lastevent==0){
+              lastevent = ev.created_at;
             }
-          }//for ib
-          printstatus("initializing nostr...analysing "+pubkeylist.length+" / "+ limit +" followers in the relay "+ relayurl +"...");
-          if(pubkeylist.length>=limit){
+            if(ev.tags.length<minfollow){return;}
+            let nnpub = pubkeylist.length;
+            let a = pubkeylist.number(npubEncode(ev.pubkey));
+            if(relaylist.length<=nnpub) relaylist.push(ri);
+            let nb = ev.tags.length;
+            for(let ib=0;ib<nb;ib++){
+              nnpub = pubkeylist.length;
+              let b = pubkeylist.number(npubEncode(ev.tags[ib][1]));
+              if(a<b){
+                friendlist.push([a,b]);
+              }else if(b<a){
+                friendlist.push([b,a]);
+              }else{
+                //ignore self
+              }
+            }//for ib
+            printstatus("initializing nostr...analysing "+pubkeylist.length+" / "+ limit +" followers in the relay "+ url +"...");
+            if(pubkeylist.length>=limit){
+              resolve();
+            }
+          });//sub.on("event",(ev)=>{
+          sub.on("eose",()=>{
+            //console.log("eose");
+            //console.log("lastevent="+lastevent);
+            console.log("got eose on "+ri+" "+url);
             resolve();
-          }
-        });//sub.on("event",(ev)=>{
-        sub.on("eose",()=>{
-          //console.log("eose");
-          //console.log("lastevent="+lastevent);
-          resolve();
-        });
-      });//Promise(()=>{
-    })();//await(async()=>{
-    if(events==0||pubkeylist.length>=limit){
-      isfinish = true;
-    }
-  }while(!isfinish);
-  sub.unsub();
-  relay.close();
+          });
+        });//Promise(()=>{
+      })();//await(async()=>{
+      if(events==0||pubkeylist.length>=limit){
+        isfinish = true;
+      }
+    }while(!isfinish);
+    sub.unsub();
+    relay.close();
+  }));
 
+  console.log("getProfile");
   await getProfile();
+
   for(let i=0;i<pubkeylist.length;i++){
     if(namelist[i]==""){
       tmp=pubkeylist[i];
@@ -114,10 +126,9 @@ let initNostr = async function(){
   }
 }
 
-let namelist;
 let getProfile = async function(){
-  relay = window.NostrTools.relayInit(relayurl);
-  relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl);});
+  relay = window.NostrTools.relayInit(relayurl[0]);
+  relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl[0]);});
   await relay.connect();
   let nnamegot = 0;
   let nevent = 0;
@@ -391,7 +402,7 @@ let procDraw = function(){
           }
         }
         document.getElementById("selecteduserlink").innerHTML=
-          "selected username = <a href='https://nostter.app/"+pubkeylist[seluser]+"' target='_blank'>"+namelist[seluser]+"</a><br>";
+          "selected username = <a href='https://nostter.app/"+pubkeylist[seluser]+"' target='_blank'>"+namelist[seluser]+"</a> on relay "+relayurl[relaylist[seluser]];
       }
       if(seluser>=0){
         ctx.StrokeStyle='rgb(255,0,0)';
