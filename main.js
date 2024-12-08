@@ -53,6 +53,7 @@ const initNostr = async function(){
     await relay.connect();
     let isfinish = false;
     let lastevent = 0;
+    let relayEventCount = 0; // Counter for each relay
     do{
       let filter;
       if(lastevent==0){
@@ -68,19 +69,16 @@ const initNostr = async function(){
           setTimeout(()=>resolve(), 30000); //timeout
           sub.on("event",(ev)=>{
             let ri=relayurl.indexOf(url);
-            console.log("got event on "+ri+" "+url);
             events++;
-            //console.log("ev.created_at="+ev.created_at);
+            relayEventCount++;
             if(ev.created_at<lastevent || lastevent==0){
               lastevent = ev.created_at;
             }
             if(ev.tags.length<minfollow){return;}
-            let nnpub = pubkeylist.length;
             let a = pubkeylist.number(npubEncode(ev.pubkey));
-            if(relaylist.length<=nnpub) relaylist.push(ri);
+            addRelay(ri,a);
             let nb = ev.tags.length;
             for(let ib=0;ib<nb;ib++){
-              nnpub = pubkeylist.length;
               let b = pubkeylist.number(npubEncode(ev.tags[ib][1]));
               if(a<b){
                 friendlist.push([a,b]);
@@ -90,20 +88,19 @@ const initNostr = async function(){
                 //ignore self
               }
             }//for ib
-            printstatus("initializing nostr...analysing "+pubkeylist.length+" / "+ limit +" followers in the relay "+ url +"...");
-            if(pubkeylist.length>=limit){
+            printstatus("initializing nostr...analysing "+relayEventCount+" / "+ limit +" followers in the relay "+ url +"...");
+            if(relayEventCount >= limit){
               resolve();
             }
           });//sub.on("event",(ev)=>{
           sub.on("eose",()=>{
-            //console.log("eose");
-            //console.log("lastevent="+lastevent);
             console.log("got eose on "+ri+" "+url);
             resolve();
           });
         });//Promise(()=>{
       })();//await(async()=>{
-      if(events==0||pubkeylist.length>=limit){
+      console.log("events="+events+" relay="+url);
+      if(events==0 || relayEventCount >= limit){
         isfinish = true;
       }
     }while(!isfinish);
@@ -125,8 +122,15 @@ const initNostr = async function(){
     }
   }
 }
-
-let getProfile = async function(){
+const addRelay = function(ri,a){
+  if(relaylist[a]==undefined){
+    relaylist[a]=[];
+  }
+  if(relaylist[a].indexOf(ri)<0){
+    relaylist[a].push(ri);
+  }
+}
+const getProfile = async function(){
   relay = window.NostrTools.relayInit(relayurl[0]);
   relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl[0]);});
   await relay.connect();
@@ -401,8 +405,14 @@ let procDraw = function(){
             seluser_d=d;
           }
         }
+        let relaystr = "";
+        if(relaylist[seluser]!=undefined){
+          for(let i=0;i<relaylist[seluser].length;i++){
+            relaystr += relayurl[relaylist[seluser][i]]+" ";
+          }
+        }
         document.getElementById("selecteduserlink").innerHTML=
-          "selected username = <a href='https://nostter.app/"+pubkeylist[seluser]+"' target='_blank'>"+namelist[seluser]+"</a> on relay "+relayurl[relaylist[seluser]];
+          "selected username = <a href='https://nostter.app/"+pubkeylist[seluser]+"' target='_blank'>"+namelist[seluser]+"</a> on relay "+relaystr;
       }
       if(seluser>=0){
         ctx.StrokeStyle='rgb(255,0,0)';
@@ -473,3 +483,4 @@ let zoom = function(value){ // value=+1:zoom in, value=-1:zoom out
   gW.recalc();
   isRequestedDraw = true;
 }
+
