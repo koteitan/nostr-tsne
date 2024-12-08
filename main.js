@@ -9,7 +9,7 @@ let printstatus=function(str){
 const printstatus_relaycount=function(relayEventCount, limitperrelay){
   let str = "initializing nostr...<br>";
   for(let i=0;i<nrelay;i++){
-    str+=neventlist[i]+" / "+ limitperrelay +" followers in the relay "+ relayurl[i];
+    str+=neventlist[i]+" / "+ limitperrelay +" users in the relay "+ relayurl[i];
     if(eoselist[i]){
       str+=" (EOSE)";
     }
@@ -201,7 +201,6 @@ const initNostr = async function(){
             }//for ib
             let limitperrelay = Math.floor(limit/nrelay);
             printstatus_relaycount(neventlist[ri], limitperrelay);
-            //printstatus("initializing nostr...analysing "+neventlist[ri]+" / "+ limitperrelay +" followers in the relay "+ url +"...");
             if(neventlist[ri] >= limitperrelay){
               resolve();
             }
