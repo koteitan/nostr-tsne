@@ -9,8 +9,8 @@ let printstatus=function(str){
 const printstatus_relaycount=function(relayEventCount, limitperrelay){
   let str = "initializing nostr...<br>";
   for(let i=0;i<nrelay;i++){
-    str+=neventlist[i]+" / "+ limitperrelay +" users in the relay "+ relayurl[i];
-    if(eoselist[i]){
+    str+=nevents[i]+" / "+ limitperrelay +" users in the relay "+ searchrelays[i];
+    if(eoses[i]){
       str+=" (EOSE)";
     }
     str+="<br>"; 
@@ -31,8 +31,11 @@ let start = async function(){
   minfollow = form1.minfollow.value;
 
   if(!is_data_digits){
-    printstatus("initialize nostr...");
-    await initNostr();
+    //nostr
+    await anaFollower();
+    form1.skipbutton.disabled = true;
+    await getProfile();
+    //await getLang();
   }
 
   printstatus("initialize t-SNE...");
@@ -50,10 +53,10 @@ let start = async function(){
 put_my_relay = async function(kind){
     printstatus("wait for your relays...");
     try{
-      let list = await get_my_relay(kind);
-      form1.relayurl.value = "";
-      for(relay of list){
-        form1.relayurl.value += relay + "\n";
+      let s = await get_my_relay(kind);
+      form1.searchrelays.value = "";
+      for(relay of s){
+        form1.searchrelays.value += relay + "\n";
       }
     }catch(e){
       printstatus(e);
@@ -66,9 +69,9 @@ async function get_my_relay(kind){
   }else{
     throw "Please set NIP-07 browser extension."
   }
-  let relaylist = Object.keys(bsrelay);
+  let userrelays = Object.keys(bsrelay);
   let filter = [{"kinds":[kind],"authors":[await window.nostr.getPublicKey()]}];
-  let resultlist = await Promise.allSettled(relaylist.map(async (url)=>{
+  let results = await Promise.allSettled(userrelays.map(async (url)=>{
     let result = [];
 
     await Promise.race([new Promise(async (resolve, reject)=>{
@@ -93,7 +96,7 @@ async function get_my_relay(kind){
         if(kind==3){
           result.push({
             time     :ev.created_at,
-            relaylist:Object.keys(JSON.parse(ev.content)),
+            userrelays:Object.keys(JSON.parse(ev.content)),
             origin   :url,
           });
         }else if(kind==10002){
@@ -103,7 +106,7 @@ async function get_my_relay(kind){
           }
           result.push({
             time     :ev.created_at,
-            relaylist:rl,
+            userrelays:rl,
             origin   :url,
           });
         }
@@ -115,7 +118,7 @@ async function get_my_relay(kind){
     });
   })).then(results=>{
     console.log("debug:-------");
-    latest = {time:0, relaylist:[]};
+    latest = {time:0, userrelays:[]};
     for(r1 of results){
       if(r1.status=='rejected')continue;
       for(r2 of r1.value){
@@ -124,45 +127,45 @@ async function get_my_relay(kind){
         }
       }
     }
-    return latest.relaylist;
+    return latest.userrelays;
   });
-  return resultlist;
+  return results;
 }
-let relayurl;
+let searchrelays;
 let nrelay;
 let pubpool;
-let friendlist;
-let namelist;
-let relaylist = [];
-let neventlist = [];
-let eoselist = [];
-let followerlist;
+let friends;
+let userrelays;
+let nevents = [];
+let eoses = [];
+let followers;
 let npubEncode = window.NostrTools.nip19.npubEncode;
 
-const initNostr = async function(){
-  pubkeylist = []; // pubkeylist[i] = hex pubkey of i-th person
-  friendlist = []; // friendlist[i][0] and friendlist[i][1] is friend.
+const anaFollower = async function(){
+  pubkeys = []; // pubkeys[i] = hex pubkey of i-th person
+  friends = []; // friends[i][0] and friends[i][1] is friend.
+  userrelays  = []; // userrelays[i][r] is r-th relay name in which i-th person has their follow s.
   //get relay url from the form
-  relayurlstr = form1.relayurl.value;
-  relayurlstr = relayurlstr.replace(/ */g, '');
-  relayurlstr = relayurlstr.replace(/\n\n/g, '\n');
-  relayurlstr = relayurlstr.replace(/\n$/g, '');
-  relayurl = relayurlstr.split("\n");
-  nrelay = relayurl.length;
+  let str = form1.searchrelays.value;
+  str = str.replace(/ */g  , ''  );
+  str = str.replace(/\n\n/g, '\n');
+  str = str.replace(/\n$/g , ''  );
+  searchrelays = str.split("\n");
+  nrelay = searchrelays.length;
   for(let i=0;i<nrelay;i++){
-    neventlist[i]=0;
-    eoselist[i]=false;
+    nevents[i]=0;
+    eoses[i]=false;
   }
  
-  await Promise.allSettled(relayurl.map(async (url)=>{
+  await Promise.allSettled(searchrelays.map(async (url)=>{
     let relay = window.NostrTools.relayInit(url);
     relay.on("error",()=>{console.log("error:relay.on for the relay "+url);});
     await relay.connect();
     let isfinish = false;
     let lastevent = 0;
     do{
-      let ri=relayurl.indexOf(url);
-      let limitr = Math.min(Math.floor(limit/nrelay-neventlist[ri]), 500);
+      let ri=searchrelays.indexOf(url);
+      let limitr = Math.min(Math.floor(limit/nrelay-nevents[ri]), 500);
       let filter;
       if(lastevent==0){
         filter = [{"kinds":[3],"limit":limitr}];
@@ -173,86 +176,72 @@ const initNostr = async function(){
       let events = 0;
       await (async ()=>{
         return new Promise((resolve)=>{
-          console.log("start on "+url);
           sub.on("event",(ev)=>{
             if(isskip){
               resolve();
               return;
             }
-            let ri=relayurl.indexOf(url);
+            let ri=searchrelays.indexOf(url);
             events++;
             if(ev.created_at<lastevent || lastevent==0){
               lastevent = ev.created_at;
             }
             if(ev.tags.length<minfollow){return;}
-            neventlist[ri]++;
-            let a = pubkeylist.number(npubEncode(ev.pubkey));
+            nevents[ri]++;
+            let a = pubkeys.number(npubEncode(ev.pubkey));
             addRelay(ri,a);
             let nb = ev.tags.length;
             for(let ib=0;ib<nb;ib++){
-              let b = pubkeylist.number(npubEncode(ev.tags[ib][1]));
+              let b = pubkeys.number(npubEncode(ev.tags[ib][1]));
               if(a<b){
-                friendlist.push([a,b]);
+                friends.push([a,b]);
               }else if(b<a){
-                friendlist.push([b,a]);
+                friends.push([b,a]);
               }else{
                 //ignore self
               }
             }//for ib
             let limitperrelay = Math.floor(limit/nrelay);
-            printstatus_relaycount(neventlist[ri], limitperrelay);
-            if(neventlist[ri] >= limitperrelay){
+            printstatus_relaycount(nevents[ri], limitperrelay);
+            if(nevents[ri] >= limitperrelay){
               resolve();
             }
           });//sub.on("event",(ev)=>{
           sub.on("eose",()=>{
-            eoselist[ri]=true;
+            eoses[ri]=true;
             resolve();
           });
         });//Promise(()=>{
       })();//await(async()=>{
-      if(events==0 || neventlist[ri]>= limitperrelay){
+      if(events==0 || nevents[ri]>= limitperrelay){
         isfinish = true;
       }
     }while(!isskip && !isfinish);
     sub.unsub();
     relay.close();
   }));
-
-  form1.skipbutton.disabled = true;
-  console.log("getProfile");
-  await getProfile();
-
-  for(let i=0;i<pubkeylist.length;i++){
-    if(namelist[i]==""){
-      tmp=pubkeylist[i];
-      //sanitize html tag
-      tmp=tmp.replace(/&/g,"&amp;");
-      tmp=tmp.replace(/</g,"&lt;");
-      tmp=tmp.replace(/>/g,"&gt;");
-      namelist[i]=tmp;
-    }
-  }
 }
 const addRelay = function(ri,a){
-  if(relaylist[a]==undefined){
-    relaylist[a]=[];
+  if(userrelays[a]==undefined){
+    userrelays[a]=[];
   }
-  if(relaylist[a].indexOf(ri)<0){
-    relaylist[a].push(ri);
+  if(userrelays[a].indexOf(ri)<0){
+    userrelays[a].push(ri);
   }
 }
+
+let names;
 const getProfile = async function(){
-  relay = window.NostrTools.relayInit(relayurl[0]);
-  relay.on("error",()=>{console.log("error:relay.on for the relay "+relayurl[0]);});
+  relay = window.NostrTools.relayInit(searchrelays[0]);
+  relay.on("error",()=>{console.log("error:relay.on for the relay "+searchrelays[0]);});
   await relay.connect();
   let nnamegot = 0;
   let nevent = 0;
   let isfinish = false;
   let lastevent = 0;
-  namelist = new Array(pubkeylist.length);
-  for(let i=0;i<pubkeylist.length;i++){
-    namelist[i]="";
+  names = new Array(pubkeys.length);
+  for(let i=0;i<pubkeys.length;i++){
+    names[i]="";
   }
   // correct kind:0
   do{
@@ -275,9 +264,9 @@ const getProfile = async function(){
           }
           let name = JSON.parse(ev.content).name;
           let npub = window.NostrTools.nip19.npubEncode(ev.pubkey);
-          let n = pubkeylist.indexOf(npub);
+          let n = pubkeys.indexOf(npub);
           if(n>=0){
-            namelist[n]=name;
+            names[n]=name;
             nnamegot++;
           }
           printstatus("getting profile..."+nnamegot+" / "+events+" kind:0 events in the relay...");
@@ -289,15 +278,83 @@ const getProfile = async function(){
         });
       });//Promise(()=>{
     })();//await(async()=>{
-    if(events==0||pubkeylist.length>=limit){
+    if(events==0||pubkeys.length>=limit){
       isfinish = true;
     }
   }while(!isfinish);
   sub.unsub();
   relay.close();
+
+  for(let i=0;i<pubkeys.length;i++){
+    if(names[i]==""){
+      tmp=pubkeys[i];
+      //sanitize html tag
+      tmp=tmp.replace(/&/g,"&amp;");
+      tmp=tmp.replace(/</g,"&lt;");
+      tmp=tmp.replace(/>/g,"&gt;");
+      names[i]=tmp;
+    }
+  }
 }
+let langs;
+let langcolor;
+const getLang = async function(){
+  relay = window.NostrTools.relayInit(searchrelays[0]);
+  relay.on("error",()=>{console.log("error:relay.on for the relay "+searchrelays[0]);});
+  await relay.connect();
+  let nlanggot = 0;
+  let nevent = 0;
+  let isfinish = false;
+  let lastevent = 0;
+  langs = new Array(pubkeys.length);
+  for(let i=0;i<pubkeys.length;i++){
+    langs[i]="";
+  }
+  // correct kind:1
+  for(let i=0;i<pubkeys.length;i++){
+    let filter;
+    if(lastevent==0){
+      filter = [{"kinds":[0],"limit":500}];
+    }else{
+      filter = [{"until":lastevent,"kinds":[0],"limit":500}];
+    }
+    sub = relay.sub(filter);
+    let events = 0;
+    await (async ()=>{
+      return new Promise((resolve)=>{
+        setTimeout(()=>resolve(), 30000); //timeout
+        sub.on("event",(ev)=>{
+          events++;
+          //console.log("ev.created_at="+ev.created_at);
+          if(ev.created_at<lastevent || lastevent==0){
+            lastevent = ev.created_at;
+          }
+          let name = JSON.parse(ev.content).name;
+          let npub = window.NostrTools.nip19.npubEncode(ev.pubkey);
+          let n = pubkeys.indexOf(npub);
+          if(n>=0){
+            names[n]=name;
+            nnamegot++;
+          }
+          printstatus("getting profile..."+nnamegot+" / "+events+" kind:0 events in the relay...");
+        });//sub.on("event",(ev)=>{
+        sub.on("eose",()=>{
+          //console.log("eose");
+          //console.log("lastevent="+lastevent);
+          resolve();
+        });
+      });//Promise(()=>{
+    })();//await(async()=>{
+    if(events==0||pubkeys.length>=limit){
+      isfinish = true;
+    }
+  }
+  sub.unsub();
+  relay.close();
+}
+
 let isskip = false;
-const skipcollection = function(){
+const skipsearch = function(){
   isskip = true;
 }
 //tsne-------------------
@@ -327,40 +384,40 @@ let initTsne=async function(){
     D = TSNE.data2distances(digits.data.slice(0,N-1)); //use scikit
   }else{
     // count followers
-    followerlist = new Array(pubkeylist.length);
-    for(let p=0;p<pubkeylist.length;p++){
-      followerlist[p]=0;
+    followers = new Array(pubkeys.length);
+    for(let p=0;p<pubkeys.length;p++){
+      followers[p]=0;
     }
-    for(let p=0;p<pubkeylist.length;p++){
-      for(let i=0;i<friendlist.length;i++){
-        if(friendlist[i][0]==p || friendlist[i][1]==p){
-          followerlist[p]++;
+    for(let p=0;p<pubkeys.length;p++){
+      for(let i=0;i<friends.length;i++){
+        if(friends[i][0]==p || friends[i][1]==p){
+          followers[p]++;
         }
       }
     }
-    // remove user with less than 10 followers and update pubkeylist
-    let pubkeylist2 = [];
-    let pubkeymap = new Array(pubkeylist.length);
-    for(let p=0;p<pubkeylist.length;p++){
-      if(followerlist[p]>=minfollow){
-        pubkeylist2.push(pubkeylist[p]);
-        pubkeymap[p]=pubkeylist2.length-1;
+    // remove user with less than 10 followers and update pubkeys
+    let pubkeys2 = [];
+    let pubkeymap = new Array(pubkeys.length);
+    for(let p=0;p<pubkeys.length;p++){
+      if(followers[p]>=minfollow){
+        pubkeys2.push(pubkeys[p]);
+        pubkeymap[p]=pubkeys2.length-1;
       }
     }
-    pubkeylist = pubkeylist2.clone();
-    // remove user with less than 10 followers and update friendlist
-    let friendlist2 = [];
-    for(let i=0;i<friendlist.length;i++){
-      let a = friendlist[i][0];
-      let b = friendlist[i][1];
-      if(followerlist[a]>=minfollow && followerlist[b]>=minfollow){
-        friendlist2.push([pubkeymap[a],pubkeymap[b]]);
+    pubkeys = pubkeys2.clone();
+    // remove user with less than 10 followers and update friends
+    let friends2 = [];
+    for(let i=0;i<friends.length;i++){
+      let a = friends[i][0];
+      let b = friends[i][1];
+      if(followers[a]>=minfollow && followers[b]>=minfollow){
+        friends2.push([pubkeymap[a],pubkeymap[b]]);
       }
     }
-    friendlist = friendlist2.clone();
+    friends = friends2.clone();
 
-    /* friendlist2[i][2] to D[i][j] */
-    let N = pubkeylist.length;
+    /* friends2[i][2] to D[i][j] */
+    let N = pubkeys.length;
     D = new Array(N);
     for(let i=0;i<N;i++){
       D[i]=new Array(N);
@@ -368,16 +425,16 @@ let initTsne=async function(){
         D[i][j]=10000;
       }
     }
-    for(let i=0;i<friendlist.length;i++){
-      let a = friendlist[i][0];
-      let b = friendlist[i][1];
+    for(let i=0;i<friends.length;i++){
+      let a = friends[i][0];
+      let b = friends[i][1];
       D[a][b]=1;
       D[b][a]=1;
     }
   }
   tsne=new TSNE(D, 2);
   isTsneInit = true;
-
+  
   //performance counter
   elapsehist=new Array(10);
   for(let i=0;i<elapsehist.length;i++){
@@ -427,8 +484,8 @@ window.onresize = function(){ //browser resize
   isRequestedDraw = true;
 };
 // graphics ------------------------
-let ctx;
 let can;
+let ctx;
 let gS;
 let fontsize = 15;
 let radius = 15;
@@ -444,9 +501,11 @@ let initDraw=function(){
   renewgS();
 }
 let renewgS=function(){
-  let minwidth = [can.height, can.width].min();
-  let s=[[0,minwidth],[minwidth,0]];
-  gS = new Geom(2,s);
+  if(can){
+    let minwidth = [can.height, can.width].min();
+    let s=[[0,minwidth],[minwidth,0]];
+    gS = new Geom(2,s);
+  }
 }
 //proc
 let procDraw = function(){
@@ -522,13 +581,13 @@ let procDraw = function(){
           }
         }
         let relaystr = "";
-        if(relaylist[seluser]!=undefined){
-          for(let i=0;i<relaylist[seluser].length;i++){
-            relaystr += relayurl[relaylist[seluser][i]]+" ";
+        if(userrelays[seluser]!=undefined){
+          for(let i=0;i<userrelays[seluser].length;i++){
+            relaystr += searchrelays[userrelays[seluser][i]]+" ";
           }
         }
         document.getElementById("selecteduserlink").innerHTML=
-          "selected username = <a href='https://nostter.app/"+pubkeylist[seluser]+"' target='_blank'>"+namelist[seluser]+"</a> on relay "+relaystr;
+          "selected username = <a href='https://nostter.app/"+pubkeys[seluser]+"' target='_blank'>"+names[seluser]+"</a> on relay "+relaystr;
       }
       if(seluser>=0){
         ctx.StrokeStyle='rgb(255,0,0)';
@@ -536,7 +595,7 @@ let procDraw = function(){
         ctx.arc(sY[seluser][0], sY[seluser][1], radius, 0, 2*Math.PI);
         ctx.stroke();
         ctx.fillStyle='rgb(0,0,255)';
-        ctx.fillText(namelist[seluser], sY[seluser][0]+radius, sY[seluser][1]+radius);
+        ctx.fillText(names[seluser], sY[seluser][0]+radius, sY[seluser][1]+radius);
         seluser_renewed = false;
       }
     }//downpos is valid
