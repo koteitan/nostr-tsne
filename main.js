@@ -33,7 +33,7 @@ let start = async function(){
   if(!is_data_digits){
     //nostr
     await anaFollower();
-    //await getProfile();
+    await getProfile();
     await getLang();
     form1.skipbutton.disabled = true;
   }
@@ -112,7 +112,7 @@ async function get_my_relay(kind){
           }
         },
         oneose:function(){
-          console.log("eose:"+url);
+          //console.log("eose:"+url);
           sub.close();
           relay.close();
           resolve();
@@ -193,7 +193,7 @@ const anaFollower = async function(){
               return;
             }
             nevent++;
-            console.log("event "+nevent+" "+url);
+            //console.log("event "+nevent+" "+url);
             let ri=searchrelays.indexOf(url);
             if(ev.created_at<lastevent || lastevent==0){
               lastevent = ev.created_at;
@@ -221,7 +221,7 @@ const anaFollower = async function(){
             }
           },
           oneose:function(){
-            console.log("eose "+nevent+" "+url);
+            //console.log("eose "+nevent+" "+url);
             if(nevent==0){
               isfinish = true;
               eoses[ri]=true;
@@ -264,6 +264,7 @@ const getProfile = async function(){
   isskip = false;
   printstatus("finding profiles...");
   await Promise.allSettled(searchrelays.map(async (url)=>{
+    let ri = searchrelays.indexOf(url);
     let relay;
     try{
       relay = await window.NostrTools.Relay.connect(url);
@@ -289,7 +290,7 @@ const getProfile = async function(){
       await (
         new Promise(
           function(resolve){
-            setTimeout(()=>resolve(), 30000); //timeout
+            setTimeout(()=>resolve(), 3000); //timeout
             const sub = relay.subscribe(filter, {
               onevent:function(ev){
                 if(isskip||isfinish){
@@ -306,14 +307,13 @@ const getProfile = async function(){
                 let n = pubkeys.indexOf(npub);
                 if(n>=0){
                   names[n]=name;
-                  nevents[i]++;
+                  nevents[ri]++;
                 }
-                printstatus_relaycount("finding profiles...", nevents, npubonrelay[i]);
-                console.log("nevents["+i+"]="+nevents[i] + " / "+npubonrelay[i] + " "+searchrelays[i]);
+                printstatus_relaycount("finding profiles...", nevents, npubonrelay[ri]);
               },
               oneose:function(){
                 if(nevent==0){
-                  eoses[i]=true;
+                  eoses[ri]=true;
                   sub.close();
                   resolve();
                 }
@@ -344,6 +344,9 @@ const getProfile = async function(){
 let langs;
 let langcolor;
 const getLang = async function(){
+  for(let i=0;i<nrelay;i++){
+    eoses[i]=false;
+  }
   isskip = false;
   let progresses = new Array(searchrelays.length);
   for(let i=0;i<searchrelays.length;i++) progresses[i]=0;
@@ -374,7 +377,7 @@ const getLang = async function(){
         let author = window.NostrTools.nip19.decode(pubkeys[i]).data;
         let filter = [{"kinds":[1],"authors":[author],"limit":nnotetoget}];
         await (new Promise(function(resolvesub){
-          setTimeout(function(){resolvesub();}, 30000); //timeout
+          setTimeout(function(){resolvesub();}, 3000); //timeout
           const sub = relay.subscribe(filter, {
             onevent:function(ev){
               if(isskip||isfinish){
@@ -390,13 +393,12 @@ const getLang = async function(){
               printstatus_relaycount("finding languages...", progresses, pubkeys.length);
             },
             oneose:function(){
-              eoses[i]=true;
               sub.close();
               resolvesub();
             }
           });
         }));
-        console.log("i="+i+"/" + pubkeys.length+"url="+url+"end");
+        //console.log("i="+i+"/" + pubkeys.length+"url="+url+"end");
       }//for i
       relay.close();
       resolverelay();
