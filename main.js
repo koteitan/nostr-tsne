@@ -9,7 +9,12 @@ let printstatus=function(str){
 const printstatus_relaycount=function(instr, numer, denom){
   let str = instr+"<br>";
   for(let i=0;i<nrelay;i++){
-    str+=numer[i]+" / "+ denom +" users in the relay "+ searchrelays[i];
+    if(denom.constructor==Array){
+      denomstr=denom[i];
+    }else{
+      denomstr=denom;
+    }
+    str+=numer[i]+" / "+ denomstr +" users in the relay "+ searchrelays[i];
     if(eoses[i]){
       str+=" (EOSE)";
     }
@@ -136,11 +141,11 @@ async function get_my_relay(kind){
 let searchrelays;
 let nrelay;
 let pubpool;
-let friends;
 let userrelays;
 let nevents = [];
 let eoses = [];
 let npubonrelay;
+let friends;
 let followers;
 let npubEncode = window.NostrTools.nip19.npubEncode;
 
@@ -148,6 +153,7 @@ const anaFollower = async function(){
   pubkeys = []; // pubkeys[i] = hex pubkey of i-th person
   friends = []; // friends[i][0] and friends[i][1] is friend.
   userrelays  = []; // userrelays[i][r] is r-th relay name in which i-th person has their follow s.
+  followers = []; // followers[i] = number of followers of i-th person
   //get relay url from the form
   let str = form1.searchrelays.value;
   str = str.replace(/ */g  , ''  );
@@ -185,7 +191,7 @@ const anaFollower = async function(){
       await new Promise(function(resolve){
         setTimeout(()=>{
           resolve();
-        }, 3000);
+        }, 10000);
         const sub = relay.subscribe(filter, {
           onevent:function(ev){
             if(isskip||isfinish){
@@ -198,13 +204,18 @@ const anaFollower = async function(){
             if(ev.created_at<lastevent || lastevent==0){
               lastevent = ev.created_at;
             }
-            if(ev.tags.length<minfollow){return;}
+            //if(ev.tags.length<minfollow){return;}
             nevents[ri]++;
             let a = pubkeys.number(npubEncode(ev.pubkey));
             addRelay(ri,a);
             let nb = ev.tags.length;
             for(let ib=0;ib<nb;ib++){
               let b = pubkeys.number(npubEncode(ev.tags[ib][1]));
+              if(followers[b]==undefined){
+                followers[b]=0;
+              }else{
+                followers[b]++;
+              }
               if(a<b){
                 friends.push([a,b]);
               }else if(b<a){
@@ -234,6 +245,31 @@ const anaFollower = async function(){
     }while(!isfinish && !isskip);
     relay.close();
   }));
+
+  // remove user with less than 10 followers and update pubkeys
+  let pubkeys2 = [];
+  let userrelays2 = [];
+  let pubkeymap = new Array(pubkeys.length);
+  for(let p=0;p<pubkeys.length;p++){
+    if(followers[p]>=minfollow){
+      pubkeys2.push(pubkeys[p]);
+      userrelays2.push(userrelays[p]);
+      pubkeymap[p]=pubkeys2.length-1;
+    }
+  }
+  pubkeys = pubkeys2.clone();
+  userrelays = userrelays2.clone();
+  // remove user with less than 10 followers and update friends
+  let friends2 = [];
+  for(let i=0;i<friends.length;i++){
+    let a = friends[i][0];
+    let b = friends[i][1];
+    if(followers[a]>=minfollow && followers[b]>=minfollow){
+      friends2.push([pubkeymap[a],pubkeymap[b]]);
+    }
+  }
+  friends = friends2.clone();
+
   //count npubonrelay
   npubonrelay = new Array(nrelay);
   for(let i=0;i<nrelay;i++){
@@ -309,7 +345,7 @@ const getProfile = async function(){
                   names[n]=name;
                   nevents[ri]++;
                 }
-                printstatus_relaycount("finding profiles...", nevents, npubonrelay[ri]);
+                printstatus_relaycount("finding profiles...", nevents, npubonrelay);
               },
               oneose:function(){
                 if(nevent==0){
@@ -341,8 +377,10 @@ const getProfile = async function(){
     }
   }
 }
-let langs;
-let langcolor;
+let langs; // langs[i][j] = language of j-th note of i-th person
+let langcolor; // langcolor[k] = color of k-th language
+let usercolor; // usercolor[i] = color of i-th person
+let langkinds; // langkinds[k] = k-th language
 const getLang = async function(){
   for(let i=0;i<nrelay;i++){
     eoses[i]=false;
@@ -350,6 +388,7 @@ const getLang = async function(){
   isskip = false;
   let progresses = new Array(searchrelays.length);
   for(let i=0;i<searchrelays.length;i++) progresses[i]=0;
+  langkinds = [];
   await Promise.allSettled(searchrelays.map(async function(url){
     let ri = searchrelays.indexOf(url);
     return new Promise(async function(resolverelay){
@@ -373,7 +412,7 @@ const getLang = async function(){
         if(userrelays[i]==undefined){
           continue;
         }
-        console.log("i="+i+"/" + pubkeys.length+"url="+url+"start");
+        //console.log("i="+i+"/" + pubkeys.length+"url="+url+"start");
         let author = window.NostrTools.nip19.decode(pubkeys[i]).data;
         let filter = [{"kinds":[1],"authors":[author],"limit":nnotetoget}];
         await (new Promise(function(resolvesub){
@@ -389,8 +428,9 @@ const getLang = async function(){
               //remove html
               content = content.replace(/https?:\/\/[\w/:%#\$&\?\(\)~\.=\+\-]+/g,"");
               let lang = detectLanguage(content);
+              langkinds.number(lang);
               langs[i].push(lang);
-              printstatus_relaycount("finding languages...", progresses, pubkeys.length);
+              printstatus_relaycount("checking languages...", progresses, pubkeys.length);
             },
             oneose:function(){
               sub.close();
@@ -404,7 +444,32 @@ const getLang = async function(){
       resolverelay();
     });//return new Promise(async function(resolverelay){
   }));//Promise.allSettled(searchrelays.map(async function(url){
-  console.log("langs="+langs);
+  
+  langcolor = new Array(langkinds.length+1);
+  for(let i=0;i<langkinds.length;i++){
+    langcolor[i] = [Math.floor(Math.random()*256),Math.floor(Math.random()*256),Math.floor(Math.random()*256)];
+  }
+  langcolor[langkinds.length] = [0,0,0];
+
+  usercolor = new Array(pubkeys.length);
+  for(let i=0;i<pubkeys.length;i++){
+    ncount = new Array(langkinds.length);
+    for(let j=0;j<langkinds.length;j++) ncount[j]=0;
+    for(let j=0;j<langs[i].length;j++){
+      let k = langkinds.indexOf(langs[i][j]);
+      ncount[k]++;
+    }
+    let maxcount = 0;
+    let maxkind = 0;
+    maxkind = langkinds.length;
+    for(let j=0;j<langkinds.length;j++){
+      if(ncount[j]>maxcount){
+        maxcount = ncount[j];
+        maxkind = j;
+      }
+    }
+    usercolor[i] = maxkind;
+  }
 }
 
 let isskip = false;
@@ -437,39 +502,6 @@ let initTsne=async function(){
     A = digits.target.slice(0,N-1); //use scikit
     D = TSNE.data2distances(digits.data.slice(0,N-1)); //use scikit
   }else{
-    // count followers
-    followers = new Array(pubkeys.length);
-    for(let p=0;p<pubkeys.length;p++){
-      followers[p]=0;
-    }
-    for(let p=0;p<pubkeys.length;p++){
-      for(let i=0;i<friends.length;i++){
-        if(friends[i][0]==p || friends[i][1]==p){
-          followers[p]++;
-        }
-      }
-    }
-    // remove user with less than 10 followers and update pubkeys
-    let pubkeys2 = [];
-    let pubkeymap = new Array(pubkeys.length);
-    for(let p=0;p<pubkeys.length;p++){
-      if(followers[p]>=minfollow){
-        pubkeys2.push(pubkeys[p]);
-        pubkeymap[p]=pubkeys2.length-1;
-      }
-    }
-    pubkeys = pubkeys2.clone();
-    // remove user with less than 10 followers and update friends
-    let friends2 = [];
-    for(let i=0;i<friends.length;i++){
-      let a = friends[i][0];
-      let b = friends[i][1];
-      if(followers[a]>=minfollow && followers[b]>=minfollow){
-        friends2.push([pubkeymap[a],pubkeymap[b]]);
-      }
-    }
-    friends = friends2.clone();
-
     /* friends2[i][2] to D[i][j] */
     let N = pubkeys.length;
     D = new Array(N);
@@ -616,7 +648,7 @@ let procDraw = function(){
       if(is_data_digits){
         ctx.fillStyle='rgb('+color[A[n]][0]+','+color[A[n]][1]+','+color[A[n]][2]+')';
       }else{
-        ctx.fillStyle='rgb(0,0,0)';
+        ctx.fillStyle='rgb('+langcolor[usercolor[n]][0]+','+langcolor[usercolor[n]][1]+','+langcolor[usercolor[n]][2]+')';
       }
       ctx.beginPath();
       ctx.arc(sY[n][0], sY[n][1], 2, 0, 2*Math.PI);
@@ -641,7 +673,7 @@ let procDraw = function(){
           }
         }
         document.getElementById("selecteduserlink").innerHTML=
-          "selected username = <a href='https://nostter.app/"+pubkeys[seluser]+"' target='_blank'>"+names[seluser]+"</a> on relay "+relaystr;
+          "selected username = <a href='https://nostter.app/"+pubkeys[seluser]+"' target='_blank'>"+names[seluser]+"</a> on relay "+relaystr + " in "+langkinds[usercolor[seluser]];
       }
       if(seluser>=0){
         ctx.StrokeStyle='rgb(255,0,0)';

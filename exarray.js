@@ -85,15 +85,27 @@ Array.prototype.cloneFloat64Array = function(){
     return [].concat(this);
 }
 Array.prototype.clone = function(){
-    if ( this[0].constructor == Array ) {
-        var ar, n;
-        ar = new Array( this.length );
-        for ( n = 0; n < ar.length; n++ ) {
+  if ( this.length == 0 ) return [];
+  // if undefined
+  if ( this[0] == undefined ) return [].concat(this);
+  if ( this[0].constructor == Array ) {
+      var ar, n;
+      ar = new Array( this.length );
+      for ( n = 0; n < ar.length; n++ ) {
+        if ( this[n] == undefined ) {
+          ar[n] = undefined;
+        } else {
+          if ( this[n].constructor == Array ) {
             ar[n] = this[n].clone();
+          }else{
+            ar[n] = this[n];
+          }
         }
-        return ar;
-    }
-    return [].concat(this);
+          
+      }
+      return ar;
+  }
+  return [].concat(this);
 }
 /* Value of multidimensional array
    with index array i[d]
