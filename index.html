@@ -9,36 +9,70 @@
     </head>
     <body>
         <h1>nostr-tsne</h1>
+        
         <form name="form1">
-          load relay from 
-          <input type=button value="kind:3" onclick="put_my_relay(3);">
-          <input type=button value="kind:10002" onclick="put_my_relay(10002);"><br>
-          search users in the relays:<br>
-          <textarea name="searchrelays" cols=40 rows=5>
+            <div class="form-group">
+                <h2>Relay Settings</h2>
+                <div class="button-group">
+                    <label>Load relay from: </label>
+                    <input type="button" value="kind:3" onclick="put_my_relay(3);">
+                    <input type="button" value="kind:10002" onclick="put_my_relay(10002);">
+                </div>
+                
+                <div class="form-group">
+                    <label for="searchrelays">Search users in the relays:</label>
+                    <textarea name="searchrelays" id="searchrelays" rows="5">
 wss://relay.damus.io
 wss://nos.lol
 wss://yabu.me
 wss://nostr.bitcoiner.social
-          </textarea><br>
-          <input name="startbutton" type="button" value="Start" onclick="start();"> to 
-          search <input type=text name="limit" value="1000" size=5> users 
-          with <input type=text name="minfollow" value="30" size=3> or greater followers<br>
-          <!input name="button1" type="button" value="step" onclick="procTsne();">
-          <span id="debug">wait for prepairing...</span><br>
-          <input type="button" name="skipbutton" value="skip" disabled=true onclick="skipsearch();"> to get users<br>
+                    </textarea>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <h2>Search Settings</h2>
+                <div class="form-row">
+                    <input name="startbutton" type="button" value="Start" onclick="start();">
+                    <span>Search </span>
+                    <input type="text" name="limit" value="1000" size="5">
+                    <span> users with </span>
+                    <input type="text" name="minfollow" value="30" size="3">
+                    <span> or greater followers</span>
+                </div>
+                
+                <div class="form-row">
+                    <span id="debug">Wait for preparing...</span>
+                </div>
+                
+                <div class="form-row">
+                    <input type="button" name="skipbutton" value="Skip" disabled="true" onclick="skipsearch();">
+                    <span> to get users</span>
+                </div>
+            </div>
         </form>
-        <br>
-        <canvas id="outcanvas" width=600px height=600px style="border-style:solid"></canvas>
-        <form name="form2">
-          zoom by <input name="zoomin" type="button" value="+" onclick="zoom(+1);">
-          <input name="zoomout" type="button" value="-" onclick="zoom(-1);"> or mouse wheel
-        </form>
-        <p id="selecteduserlink"></p>
+        
+        <div class="canvas-container">
+            <canvas id="outcanvas" width="600" height="600"></canvas>
+            
+            <form name="form2" class="zoom-controls">
+                <div class="button-group">
+                    <label>Zoom by: </label>
+                    <input name="zoomin" type="button" value="+" onclick="zoom(+1);">
+                    <input name="zoomout" type="button" value="-" onclick="zoom(-1);">
+                    <span>or mouse wheel</span>
+                </div>
+            </form>
+        </div>
+        
+        <div class="user-info" id="selecteduserlink"></div>
+        
         <address>
-          <a href="./">nostr-tsne</a> version 1.4<br>
+            <a href="./">nostr-tsne</a> version 1.5<br>
             Programmed by <a href="https://nostter.app/koteitan.github.io">koteitan</a><br>
-            Source code is on <a href="https://github.com/koteitan/nostr-tsne">github</a><br>
+            Source code is on <a href="https://github.com/koteitan/nostr-tsne">GitHub</a>
         </address>
+        
         <script type="text/javascript" src="./digits_data.js"></script>
         <script type="text/javascript" src="./exarray.js"></script>
         <script type="text/javascript" src="./exmath.js"></script>

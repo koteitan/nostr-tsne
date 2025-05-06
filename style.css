@@ -1,54 +1,220 @@
+:root {
+  --primary-color: #00b894;
+  --secondary-color: #00a884;
+  --background-color: #f8f9fa;
+  --text-color: #333333;
+  --border-color: #dfe6e9;
+  --accent-color: #0984e3;
+  --hover-color: #0570c9;
+  --card-bg: #ffffff;
+  --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
 body {
-    font-family: 
-    -apple-system, BlinkMacSystemFont, Helvetica Neue, Segoe UI, Hiragino Kaku Gothic ProN, Hiragino Sans, ヒラギノ角ゴ ProN W3, Arial, メイリオ, Meiryo, sans-serif;
-    background-color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  line-height: 1.6;
+  margin: 0;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h1 {
+  color: var(--primary-color);
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0.5rem;
 }
 
 a {
-    color: black;
-    text-decoration: underline;
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: color 0.2s;
 }
 
 a:link {
-    color: #000055;
+  color: var(--accent-color);
 }
 
 a:visited {
-    color: #0000CC;
+  color: var(--hover-color);
 }
 
 a:hover {
-    color: #8888CC;
+  color: var(--hover-color);
+  text-decoration: underline;
 }
 
 address {
-    text-align: right;
-    font-style: normal;
-    font-size: 0.9rem; /* increased font size for better readability */
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  text-align: right;
+  font-style: normal;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+form {
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  resize: vertical;
+  background-color: var(--card-bg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 10px;
+}
+
+textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 184, 148, 0.25);
+}
+
+input[type="text"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-right: 5px;
+}
+
+input[type="text"]:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 184, 148, 0.25);
+}
+
+input[type="button"] {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-right: 5px;
+}
+
+input[type="button"]:hover {
+  background-color: var(--secondary-color);
+}
+
+canvas {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-width: 100%;
+  box-shadow: var(--card-shadow);
+  margin: 20px 0;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.form-row label {
+  margin-right: 10px;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+
+.canvas-container {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.user-info {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
 }
 
 .myinput {
-    border-style: solid;
-    border-color: black;
-    border-width: 1px;
-    color: black;
-    font-size: 12pt; /* increased font size for better readability */
-    padding: 2px;
-    white-space: nowrap;
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  font-family: monospace;
+  font-size: 14px;
+  padding: 10px;
+  border-radius: 4px;
 }
 
 .example {
-    border-style: none;
-    border-color: black;
-    border-width: 1px;
-    color: black;
-    font-size: 12pt; /* increased font size for better readability */
-    padding: 10px;
+  background-color: #f1f2f6;
+  padding: 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  margin: 10px 0;
 }
 
 .debugout {
-    width: 98%;
+  width: 100%;
+  display: none;
 }
-.debug{
-  display:none
+
+.debug {
+  display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  body {
+    padding: 15px;
+  }
+  
+  form {
+    padding: 15px;
+  }
+  
+  h1 {
+    font-size: 1.8rem;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .form-row label {
+    margin-bottom: 5px;
+  }
+  
+  input[type="button"] {
+    margin-bottom: 10px;
+  }
+  
+  canvas {
+    max-width: 100%;
+    height: auto;
+  }
 }
